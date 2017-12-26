@@ -1,0 +1,174 @@
+/*Class Project 5
+1. There are two noisy images lenaWithNoise.pgm and cameraWithNoise.pgm,
+model the noise to get the noise patterns and design filters or procedures to
+remove or reduce the noise to get uncorrupted lena and camera images.*/
+
+#include "FunctionName.h"
+Mat Hist(Mat srcImg, Mat &dstImg)
+{
+        /*calculate histogram*/
+        int histogram[256];//build histogram
+        memset(histogram, 0, 256 * sizeof(int));//initialize with 0
+        int pixelCount = srcImg.cols*srcImg.rows;
+        uchar *imageData = srcImg.data;//use pointer .Data
+        int maxhis = 0;
+        for (int i = 0; i <= pixelCount - 1; ++i)//assignment
+        {
+               int gray = imageData[i];
+               histogram[gray]++;
+        }
+                       maxhis = histogram[0];
+        for (int j = 1; j < 256; j++)
+        {
+               if (histogram[j] > maxhis)
+               {
+                       maxhis = histogram[j];
+               }
+        }
+        dstImg = Mat::zeros(maxhis, 260, CV_8U);
+        for (int x = 3; x < 259; x++)
+        {
+               for (int y = 0; y < maxhis; y++)
+               {
+                       int number = maxhis - histogram[x-3];
+                       if (y <= number)
+                       {
+                              dstImg.at<uchar>(y, x) = 0;
+                       }
+                       else
+                       {
+                              dstImg.at<uchar>(y, x) = 255;
+                       }
+               }
+        }
+        return dstImg;
+}
+Mat Median(Mat srcImg, Mat &dstImg, int k)
+{
+        //srcImg: input image
+        //dstImg: output image after mid point filter
+        //k: k*k kernal(must be odd)
+        dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+        int m = (k - 1) / 2;
+        int k2 = k*k;
+        for (int i = m; i < srcImg.rows - m; i++)//assignment
+        {
+               for (int j = m; j < srcImg.cols - m; j++)
+               {
+                       Mat pk = Mat::zeros(k2,1,CV_8U);
+                       for (int x = 0; x < k; x++)
+                       {
+                              for (int y = 0; y < k; y++)
+                              {
+                                      pk.at<uchar>(k*x+y, 0) = srcImg.at<uchar>(i+x-m,j+y-m);
+                              }
+                       }
+                       
+                       for (int gap = k2 / 2; gap > 0; gap /= 2)//shell sort 
+                       {
+                              for (int i = gap; i < k2; ++i)
+                              {
+                                      for (int j = i - gap; j >= 0 && pk.at<uchar>(j,0) > pk.at<uchar>(j+gap, 0); j -= gap)
+                                      {
+                                             swap(pk.at<uchar>(j, 0), pk.at<uchar>(j+gap, 0));
+                                      }
+                              }
+                       }
+                       dstImg.at<uchar>(i, j) = pk.at<uchar>((k2-1)/2,0);
+               }
+        }
+        return dstImg;
+}
+Mat MoveToCenter(Mat srcImg, Mat &dstImg)
+{
+        //srcImg: input image
+        //dstImg: output image with move to center
+        //assignment
+        for (int y = 0; y < srcImg.rows; y++) {
+               float *pdst = dstImg.ptr<float>(y);
+               float *psrc = srcImg.ptr<float>(y);
+               for (int x = 0; x < srcImg.cols; x++) {
+                       pdst[x] = pow(-1.0, x + y + 2)*psrc[x];
+               }
+        }
+        return dstImg;
+}
+Mat DFT(Mat srcImg, Mat &dstImgReal, Mat &dstImgImgi)
+{
+        //srcImg: input image
+        //dstImg: output image
+        //DFT of input image and output image with real part and imaginary part
+        //input image and convert to gray float image
+        Mat padded;                 //prepare padded matrix
+        float N = getOptimalDFTSize(srcImg.rows);//get optimal dft size
+        float M = getOptimalDFTSize(srcImg.cols);
+        //input image padded
+        copyMakeBorder(srcImg, padded, 0, N - srcImg.rows, 0, M - srcImg.cols, BORDER_CONSTANT, Scalar::all(0));
+        // prepare planes[2] where planes[0] is real part and planes[1] is imaginary part
+        MoveToCenter(padded, padded);// move padded to center
+        Mat planes[] = { Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F) };
+        Mat complexI;
+        merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+        dft(complexI, complexI);        //dft
+        split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+        dstImgReal = planes[0];
+        dstImgImgi = planes[1];
+        return dstImgImgi, dstImgReal;
+}
+Mat IDFT(Mat srcImgReal, Mat srcImgImgi, Mat &dstImg)
+{
+        //srcImgReal:real part input image
+        //srcImgImgi:imginary part input image
+        //dstImg: output image
+        //IDFT of input image
+        //input image and convert to gray float image
+        Mat planes[] = { srcImgReal, srcImgImgi };
+        Mat complexI;
+        merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+        idft(complexI, complexI);
+        split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+        dstImg = planes[0]; //ger real part of idft image as dstimage
+        MoveToCenter(dstImg, dstImg);// move dstImg to center
+        return dstImg;
+}
+Mat SFNFF(Mat &dstImg,int M, int N)
+{
+        //D0: cutoff frequency of ideal highpass filter function(IDHPFF)
+        //M,N: cols and rows of dstImg
+        //dstImg: output gaussian bandpass filter function
+        //assignment
+        for (int v = 0; v < N - 1; v++)
+        {
+               float *p = dstImg.ptr<float>(v);//pixel pointer
+               for (int u = 0; u < M - 1; u++)
+               {
+                       if ((v == 82) ||(v == 149) || (v == 405) || (v == 337)||(u == 243))
+                       p[u] = 0;
+               }
+        }
+        imshow("specific bandreject filter1", dstImg);
+        return dstImg;
+}
+Mat SFNF(Mat srcImg, Mat &dstImg)
+{
+        //srcImg: input image
+        //D0: cutoff frequency
+        //dstImg: output image with gaussian band reject filter and binalization
+        //dstImgOrigin: output image with ideal band reject filter
+        //1 DFT of input image (after log transfer) and get real and imag part in frequency
+        Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+        Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+        DFT(srcImg, dstImgReal, dstImgImgi);
+        //2 prepare IDBRFF
+        Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(255));//prepare H(u,v)
+        SFNFF(H, srcImg.cols, srcImg.rows);
+        //3 filter
+        multiply(dstImgReal, H, dstImgReal);
+        multiply(dstImgImgi, H, dstImgImgi);
+        //4 IDFT of dstImg and dstImgNoise
+        IDFT(dstImgReal, dstImgImgi, dstImg);
+        //5 normalize and binalization
+        normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+        dstImg.convertTo(dstImg, CV_8U);
+        return dstImg;
+}

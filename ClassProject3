@@ -1,0 +1,255 @@
+/*
+Class Project 3
+1. Implement 2D DFT for all provided images and analyze their
+transformed images in frequency domain
+2. Reconstruct lena.pgm only using the phase angle from 2D DFT
+3. Filter lena.pgm and camera.pgm using IDLPF, BLPF, GLPF and
+compare the image qualities with different cutoff frequencies
+*/
+
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <math.h>
+#include <complex.h>
+#include <iostream>
+#define r2a(x) (3.1415926*(x)/180.0)//transfer radian to angle
+using namespace cv;
+using namespace std;
+void ImageDFT(Mat srcimage)
+{
+    //image: input picture
+    //DFT of input image and show the spectrum picture and phase angle reconstructed
+    Mat image;
+    cvtColor(srcimage, image, CV_RGB2GRAY);//transfer into gray image
+    image.convertTo(image, CV_32F);
+    float N = getOptimalDFTSize(image.rows);//get optimal dft size
+    float M = getOptimalDFTSize(image.cols);
+    //input image padded
+    copyMakeBorder(image, image, 0, N - image.rows, 0, M - image.cols, BORDER_CONSTANT, Scalar::all(0));
+    //prepare planes[3] where planes[0] is real part and planes[1] is imaginary part and planes[2] is magnitude part
+    Mat planes[] = { Mat::zeros(image.size(), CV_32F), Mat::zeros(image.size(), CV_32F), Mat::zeros(image.size(), CV_32F) };
+    /*dft process*/
+    for (float v = 0.0; v < N - 1; v++)//digital fourier transformation and assignment
+    {
+        float * rePixel = planes[0].ptr<float>(v);//pointer for calculation
+        float * imPixel = planes[1].ptr<float>(v);
+        //float * magPixel = planes[2].ptr<float>(v);
+        for (int u = 0; u < M - 1; u++)
+        {
+            for (float n = 0.0; n < N - 1; n++)
+            {
+                float *pixel = image.ptr<float>(n);
+                for (int m = 0; m < M - 1; m++)
+                {
+                    rePixel[u] = rePixel[u] + pixel[m] * pow(-1, n + m + 2)* (cos(6.2831853071796 * (u*m / M + v*n / N)));//real part assignment
+                    imPixel[u] = imPixel[u] - pixel[m] * pow(-1, n + m + 2)*(sin(6.2831853071796 * (u*m / M + v*n / N)));//imaginary part assignment
+                }
+            }
+            //magPixel[u] = sqrt(pow(rePixel[u], 2) + pow(imPixel[u], 2));
+        }
+    }
+    //transfer magnitude into logarithmic scale
+    magnitude(planes[0], planes[1], planes[2]);
+    planes[2] += Scalar::all(1);//mat matrix ccalculation
+    log(planes[2], planes[2]);
+    normalize(planes[2], planes[2], 0, 1, CV_MINMAX);//normalize
+    /*result display*/
+    cv::namedWindow("DFT magnitude image", WINDOW_AUTOSIZE);
+    cv::imshow("DFT magnitude image", planes[2]);
+}
+void AngleReconstruction(Mat &image)
+{
+    //image: input picture
+    //reconstruction the phase angle of input image
+    /*dft*/
+    cvtColor(image, image, CV_BGR2GRAY);
+    Mat padded;                 //prepare padded matrix
+    float N = getOptimalDFTSize(image.rows);//get optimal dft size
+    float M = getOptimalDFTSize(image.cols);
+    //input image padded
+    copyMakeBorder(image, padded, 0, N - image.rows, 0, M - image.cols, BORDER_CONSTANT, Scalar::all(0));
+    // prepare planes[2] where planes[0] is real part and planes[1] is imaginary part
+    Mat planes[] = { Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F) };
+    Mat complexI;
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    dft(complexI, complexI);        //dft
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    /*recontruct with phase angle*/
+    for (float v = 0.0; v < N - 1; v++)//digital fourier transformation and assignment
+    {
+        float * rePixel = planes[0].ptr<float>(v);//pointer for calculation
+        float * imPixel = planes[1].ptr<float>(v);
+        for (int u = 0; u < M - 1; u++)
+        {
+            rePixel[u] = atan(imPixel[u] / rePixel[u]);//assignment
+            imPixel[u] = atan(imPixel[u] / rePixel[u]);
+        }
+    }
+    //prepare planes[2] where planes[0] is real part and planes[1] is imaginary part
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    idft(complexI, complexI);
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    //normalize
+    normalize(planes[0], planes[0], 0, 1, CV_MINMAX);//normalize
+    /*result display*/
+    cv::namedWindow("real part phase angle reconstruction image", WINDOW_AUTOSIZE);
+    cv::imshow("real part phase angle reconstruction image", planes[0]);
+}
+void IDLPF(Mat &image, float D0)
+{    //image: input picture
+    //D: cutoff frequency
+    //output image with ideal lowpass filter
+    /*DFT of input image*/
+    cvtColor(image, image, CV_BGR2GRAY);
+    Mat padded;                 //prepare padded matrix
+    float N = getOptimalDFTSize(image.rows);//get optimal dft size
+    float M = getOptimalDFTSize(image.cols);
+    //input image padded
+    copyMakeBorder(image, padded, 0, N - image.rows, 0, M - image.cols, BORDER_CONSTANT, Scalar::all(0));
+    // prepare planes[2] where planes[0] is real part and planes[1] is imaginary part
+    Mat planes[] = { Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F) };
+    Mat complexI;
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    dft(complexI, complexI);        //dft
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    /*ldeal lowpass filter*/
+    //prepare the transfer function
+    Mat transFunc(M, N, CV_32F, Scalar(0));
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = transFunc.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = sqrt(pow(u - M / 2.0, 2.0) + pow(v - N / 2.0, 2.0));//distance from image center
+            if (D <= D0)
+                p[u] = 1.0;
+        }
+    }
+    //fliter
+    for (float v = 0.0; v < N - 1; v++)//digital fourier transformation and assignment
+    {
+        float * rePixel = planes[0].ptr<float>(v);//pointer for calculation
+        float * imPixel = planes[1].ptr<float>(v);
+        float *p = transFunc.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            rePixel[u] = rePixel[u] * p[u];//assignment
+            imPixel[u] = imPixel[u] * p[u];
+        }
+    }
+    /*reconstruction*/
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    idft(complexI, complexI);
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    //normalize
+    normalize(planes[0], planes[0], 0, 1, CV_MINMAX);//normalize
+    /*result display*/
+    cv::namedWindow("real part ideal lowpass filter reconstruction image", WINDOW_AUTOSIZE);
+    cv::imshow("real part ideal lowpass filter reconstruction image", planes[0]);
+}
+void BLPF(Mat &image, float D0, float n)
+{    //image: input picture
+    //D0: cutoff frequency
+    //n: filter order
+    //output image with Butterworth lowpass filter
+    /*DFT of input image*/
+    cvtColor(image, image, CV_BGR2GRAY);
+    Mat padded;                 //prepare padded matrix
+    float N = getOptimalDFTSize(image.rows);//get optimal dft size
+    float M = getOptimalDFTSize(image.cols);
+    //input image padded
+    copyMakeBorder(image, padded, 0, N - image.rows, 0, M - image.cols, BORDER_CONSTANT, Scalar::all(0));
+    // prepare planes[2] where planes[0] is real part and planes[1] is imaginary part
+    Mat planes[] = { Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F) };
+    Mat complexI;
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    dft(complexI, complexI);        //dft
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    /*Butterworth lowpass filter*/
+    //prepare the transfer function
+    Mat transFunc(M, N, CV_32F, Scalar(0));
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = transFunc.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = sqrt(pow(u - M / 2.0, 2.0) + pow(v - N / 2.0, 2.0));//distance from image center
+            p[u] = 1.0 / (1 + pow(D / D0, 2 * n));
+        }
+    }
+    //fliter
+    for (float v = 0.0; v < N - 1; v++)//digital fourier transformation and assignment
+    {
+        float * rePixel = planes[0].ptr<float>(v);//pointer for calculation
+        float * imPixel = planes[1].ptr<float>(v);
+        float *p = transFunc.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            rePixel[u] = rePixel[u] * p[u];//assignment
+            imPixel[u] = imPixel[u] * p[u];
+        }
+    }
+    /*reconstruction*/
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    idft(complexI, complexI);
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    //normalize
+    normalize(planes[0], planes[0], 0, 1, CV_MINMAX);//normalize
+    /*result display*/
+    cv::namedWindow("real part Butterworth lowpass filter reconstruction image", WINDOW_AUTOSIZE);
+    cv::imshow("real part Butterworth lowpass filter reconstruction image", planes[0]);
+}
+void GLPF(Mat &image, float D0)
+{    //image: input picture
+    //D0: cutoff frequency
+    //output image with Gaussian lowpass filter
+    /*DFT of input image*/
+    cvtColor(image, image, CV_BGR2GRAY);
+    Mat padded;                 //prepare padded matrix
+    float N = getOptimalDFTSize(image.rows);//get optimal dft size
+    float M = getOptimalDFTSize(image.cols);
+    //input image padded
+    copyMakeBorder(image, padded, 0, N - image.rows, 0, M - image.cols, BORDER_CONSTANT, Scalar::all(0));
+    // prepare planes[2] where planes[0] is real part and planes[1] is imaginary part
+    Mat planes[] = { Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F) };
+    Mat complexI;
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    dft(complexI, complexI);        //dft
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    /*Butterworth lowpass filter*/
+    //prepare the transfer function
+    Mat transFunc(M, N, CV_32F, Scalar(0));
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = transFunc.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = sqrt(pow(u - M / 2.0, 2.0) + pow(v - N / 2.0, 2.0));//distance from image center
+            p[u] = exp(-pow(D, 2) / (2 * pow(D0, 2)));//assignment
+        }
+    }
+    //fliter
+    for (float v = 0.0; v < N - 1; v++)//digital fourier transformation and assignment
+    {
+        float * rePixel = planes[0].ptr<float>(v);//pointer for calculation
+        float * imPixel = planes[1].ptr<float>(v);
+        float *p = transFunc.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            rePixel[u] = rePixel[u] * p[u];//assignment
+            imPixel[u] = imPixel[u] * p[u];
+        }
+    }
+    /*reconstruction*/
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    idft(complexI, complexI);
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    //normalize
+    normalize(planes[0], planes[0], 0, 1, CV_MINMAX);//normalize
+    /*result display*/
+    cv::namedWindow("real part Gaussian lowpass filter reconstruction image", WINDOW_AUTOSIZE);
+    cv::imshow("real part Gaussian lowpass filter reconstruction image", planes[0]);
+}

@@ -1,0 +1,546 @@
+/*
+Class Project 2
+• Use two of provided images to perform the following operations
+through write functions:
+1. Image translation
+2. Image rotation
+3. Shear operations (vertical and horizontal) respectively
+4. Smoothing with 3x3, 5x5 windows using averaging and median and
+binarization filters respectively
+5. Sharpen images with Laplacian and Sobel operators respectively through
+masking process
+6. Gamma correction using gamma value 0.1, 0.4, 0.6, 0.8, 1 and compute the
+variances of the resulted images
+7. Write histogram enhancement function to perform global and local image
+enhancement
+*/
+
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <math.h>
+#include <iostream>
+#include <string>
+#define r2a(x) (3.1415926*(x)/180.0)//transfer radian to angle 
+using namespace cv;
+using namespace std;
+
+/*image translation*/
+void ImageTranslation(Mat image, double transX, double transY)
+{
+	//image: input picture
+	//transX: translation around x axis 
+	//transY: translation around y axis
+	//translation around x axis and y axis and when x>0, move right, when y> 0, move down
+
+
+	int cols = image.cols + abs(transX); //cols after translation 
+	int rows = image.rows + abs(transY); //rows after translation
+	Mat imageResult(rows, cols, image.type());//create translation matrix 
+
+	for (int y = 0; y < rows - 1; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < cols - 1; x++)
+		{
+			int xOrigin = x - transX;//find x coord in input picture
+			int yOrigin = y - transY;//find y coord in input picture 			
+			if (xOrigin < 0 || yOrigin < 0 || xOrigin > image.cols - 1 || yOrigin > image.rows - 1)
+			{
+				imageResult.at<Vec3b>(y, x) = 0;//pixel assignment 
+			}
+			else
+			{
+				imageResult.at<Vec3b>(y, x) = image.at<Vec3b>(yOrigin, xOrigin);//pixel assignment 
+			}
+		}
+	}
+
+	/*result display*/
+	cv::namedWindow("image translation", WINDOW_AUTOSIZE);
+	cv::imshow("image translation", imageResult);
+}
+
+/*image rotation from 0-90 degree*/
+void ImageRotation(Mat image, double theta)
+{
+	//image: input picture
+	//axis: rotation axis
+	int cols = image.cols*abs(cos(theta)) + image.rows*abs(sin(theta)) + 0.5; //cols after rotation
+	int rows = image.rows*abs(cos(theta)) + image.cols*abs(sin(theta)) + 0.5; //rows after rotation
+	Mat imageResult(rows, cols, image.type());//create translation matrix 
+	for (int y = 0; y < rows - 1; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < cols - 1; x++)
+		{
+			int xOrigin = x*cos(theta) - (y - image.cols*sin(theta))*sin(theta) + 0.5;//find x coord in input picture
+			int yOrigin = x*sin(theta) + (y - image.cols*sin(theta))*cos(theta) + 0.5; //find y coord in input picture 			
+			if (xOrigin < 0 || yOrigin < 0 || xOrigin > image.cols - 1 || yOrigin > image.rows - 1)
+			{
+				imageResult.at<Vec3b>(y, x) = 0;//pixel assignment 
+			}
+			else
+			{
+				imageResult.at<Vec3b>(y, x) = image.at<Vec3b>(yOrigin, xOrigin);//pixel assignment 
+			}
+		}
+	}
+
+
+
+	/*result display*/
+	cv::namedWindow("image rotation", WINDOW_AUTOSIZE);
+	cv::imshow("image rotation", imageResult);
+}
+
+/*image shear (horizontal shear and vertical shear) from any shear factor*/
+void ImageShear(Mat image, double mH, double mV)
+{
+	//image: input picture
+	//mH: shear factor in horizontal
+	//mV: shear factor in vertical
+	//horizontal shear and vertical shear 
+	mH = abs(mH);
+	mV = abs(mV);
+	int colsH = image.cols + image.rows*mH + 0.5; //horizontal cols 
+	int rowsH = image.rows; //horizontal rows
+	Mat imageResultH(rowsH, colsH, image.type());//create horizontal translation matrix 
+
+	int colsV = image.cols;//vertical cols
+	int rowsV = image.rows + image.cols*mV + 0.5;//vertical rows
+	Mat imageResultV(rowsV, colsV, image.type());//create vertical translation matrix 
+
+	for (int y = 0; y < rowsH - 1; y++)//ergodic  translation matrix
+	{
+		for (int x = 0; x < colsH - 1; x++)
+		{
+			int xOriginH = x - image.rows*mH + mH*y + 0.5;//find x coord in input picture from horizontal 
+			int yOriginH = y; //find y coord in input picture from horizontal
+			if (xOriginH < 0 || yOriginH < 0 || xOriginH > image.cols - 1 || yOriginH > image.rows - 1)
+			{
+				imageResultH.at<Vec3b>(y, x) = 0;//pixel assignment of horizontal
+			}
+			else
+			{
+				imageResultH.at<Vec3b>(y, x) = image.at<Vec3b>(yOriginH, xOriginH);//pixel assignment of horizontal
+			}
+
+
+		}
+	}
+
+	for (int y = 0; y < rowsV - 1; y++)//ergodic  translation matrix
+	{
+		for (int x = 0; x < colsV - 1; x++)
+		{
+			int xOriginV = x;//find x coord in input picture from vertical 
+			int yOriginV = y - mV*x + 0.5; //find y coord in input picture from vertical
+			if (xOriginV < 0 || yOriginV < 0 || xOriginV > image.cols - 1 || yOriginV > image.rows - 1)
+			{
+				imageResultV.at<Vec3b>(y, x) = 0;//pixel assignment of vertical
+			}
+			else
+			{
+				imageResultV.at<Vec3b>(y, x) = image.at<Vec3b>(yOriginV, xOriginV);//pixel assignment of vertical
+			}
+		}
+	}
+
+
+
+	/*result display*/
+	cv::namedWindow("image horizontal shear", WINDOW_AUTOSIZE);
+	cv::imshow("image horizontal shear", imageResultH);
+	cv::namedWindow("image vertical shear", WINDOW_AUTOSIZE);
+	cv::imshow("image vertical shear", imageResultV);
+}
+
+/*smooth with 3*3 5*5 windows using averaging and median and binarization filters respectively*/
+
+/*average filter 3*3 and 5*5 filter*/
+void ImageAverage(Mat image)
+{
+	//image: input picture
+	//output:3*3 and 5*5 image average filtered image
+
+	Mat imageResult3(image.rows, image.cols, image.type());
+	Mat imageResult5(image.rows, image.cols, image.type());
+	for (int y = 0; y < image.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < image.cols; x++)
+		{
+			if (x>0 && y>0 && x < image.cols - 1 && y < image.rows - 1)
+			{
+
+				for (int c = 0; c < 3; c++)//pixel assignment 
+				{
+					imageResult3.at<Vec3b>(y, x)[c] =
+						(image.at<Vec3b>(y - 1, x - 1)[c] + image.at<Vec3b>(y, x - 1)[c] + image.at<Vec3b>(y + 1, x - 1)[c] +
+						image.at<Vec3b>(y - 1, x)[c] + image.at<Vec3b>(y + 1, x)[c] + image.at<Vec3b>(y, x)[c]
+						+ image.at<Vec3b>(y - 1, x + 1)[c] + image.at<Vec3b>(y, x + 1)[c] + image.at<Vec3b>(y + 1, x + 1)[c]) * 1 / 9;
+				}
+			}
+			else
+			{
+				imageResult5.at<Vec3b>(y, x) = image.at<Vec3b>(y, x);
+			}
+
+			if (x>1 && y>1 && x < image.cols - 2 && y < image.rows - 2)
+			{
+				for (int c = 0; c < 3; c++)//pixel assignment 
+				{
+
+					imageResult5.at<Vec3b>(y, x)[c] =
+						(image.at<Vec3b>(y - 2, x - 2)[c] + image.at<Vec3b>(y - 1, x - 2)[c] + image.at<Vec3b>(y, x - 2)[c] + image.at<Vec3b>(y + 1, x - 2)[c] + image.at<Vec3b>(y + 2, x - 2)[c] + image.at<Vec3b>(y - 2, x - 1)[c] + image.at<Vec3b>(y - 1, x - 1)[c] + image.at<Vec3b>(y, x - 1)[c] + image.at<Vec3b>(y + 1, x - 1)[c] + image.at<Vec3b>(y + 2, x - 1)[c] + image.at<Vec3b>(y - 2, x)[c] + image.at<Vec3b>(y - 1, x)[c] + image.at<Vec3b>(y, x)[c] + image.at<Vec3b>(y + 1, x)[c] + image.at<Vec3b>(y + 2, x)[c] + image.at<Vec3b>(y - 2, x + 1)[c] + image.at<Vec3b>(y - 1, x + 1)[c] + image.at<Vec3b>(y, x + 1)[c] + image.at<Vec3b>(y + 1, x + 1)[c] + image.at<Vec3b>(y + 2, x + 1)[c] + image.at<Vec3b>(y - 2, x + 2)[c] + image.at<Vec3b>(y - 1, x + 2)[c] + image.at<Vec3b>(y, x + 2)[c] + image.at<Vec3b>(y + 1, x + 2)[c] + image.at<Vec3b>(y + 2, x + 2)[c]) * 1 / 25;
+				}
+			}
+			else
+			{
+				imageResult5.at<Vec3b>(y, x) = image.at<Vec3b>(y, x);
+			}
+
+		}
+	}
+
+
+	/*result display*/
+	cv::namedWindow("3*3 image average filter", WINDOW_AUTOSIZE);
+	cv::imshow("3*3 image average filter", imageResult3);
+
+	cv::namedWindow("5*5 image average filter", WINDOW_AUTOSIZE);
+	cv::imshow("5*5 image average filter", imageResult5);
+}
+
+/*median filter 3*3 and 5*5 */
+void ImageMedian(Mat image)
+{
+	//image: input picture
+	//output: 3*3 and 5*5 median filtered image
+
+	Mat imageResult3(image.rows, image.cols, image.type());
+	Mat imageResult5(image.rows, image.cols, image.type());
+	for (int y = 0; y < image.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < image.cols; x++)
+		{
+			if (x>0 && y>0 && x < image.cols - 1 && y < image.rows - 1)
+			{
+
+				for (int c = 0; c < 3; c++)
+				{
+					uchar window[9] =
+					{ image.at<Vec3b>(y - 1, x - 1)[c], image.at<Vec3b>(y, x - 1)[c], image.at<Vec3b>(y + 1, x - 1)[c],
+					image.at<Vec3b>(y - 1, x)[c], image.at<Vec3b>(y + 1, x)[c], image.at<Vec3b>(y, x)[c],
+					image.at<Vec3b>(y - 1, x + 1)[c], image.at<Vec3b>(y, x + 1)[c], image.at<Vec3b>(y + 1, x + 1)[c] };
+					for (int m = 0; m < 5; ++m)//rank from low to high
+					{
+						int min = m;
+						for (int n = m + 1; n < 9; ++n)
+						if (window[n] < window[min])
+							min = n;
+						//   Put found minimum element in its place  
+						unsigned char temp = window[m];
+						window[m] = window[min];
+						window[min] = temp;
+					}
+
+					imageResult3.at<Vec3b>(y, x)[c] = window[4];
+
+				}
+			}
+			else
+			{
+				imageResult5.at<Vec3b>(y, x) = image.at<Vec3b>(y, x);
+			}
+
+			if (x>1 && y>1 && x < image.cols - 2 && y < image.rows - 2)
+			{
+				for (int c = 0; c < 3; c++)
+				{
+
+					uchar window[25] =
+					{ image.at<Vec3b>(y - 2, x - 2)[c], image.at<Vec3b>(y - 1, x - 2)[c], image.at<Vec3b>(y, x - 2)[c], image.at<Vec3b>(y + 1, x - 2)[c], image.at<Vec3b>(y + 2, x - 2)[c], image.at<Vec3b>(y - 2, x - 1)[c], image.at<Vec3b>(y - 1, x - 1)[c], image.at<Vec3b>(y, x - 1)[c], image.at<Vec3b>(y + 1, x - 1)[c], image.at<Vec3b>(y + 2, x - 1)[c], image.at<Vec3b>(y - 2, x)[c], image.at<Vec3b>(y - 1, x)[c], image.at<Vec3b>(y, x)[c], image.at<Vec3b>(y + 1, x)[c], image.at<Vec3b>(y + 2, x)[c], image.at<Vec3b>(y - 2, x + 1)[c], image.at<Vec3b>(y - 1, x + 1)[c], image.at<Vec3b>(y, x + 1)[c], image.at<Vec3b>(y + 1, x + 1)[c], image.at<Vec3b>(y + 2, x + 1)[c], image.at<Vec3b>(y - 2, x + 2)[c], image.at<Vec3b>(y - 1, x + 2)[c], image.at<Vec3b>(y, x + 2)[c], image.at<Vec3b>(y + 1, x + 2)[c], image.at<Vec3b>(y + 2, x + 2)[c] };
+					for (int m = 0; m < 13; ++m)//rank from low to high
+					{
+						int min = m;
+						for (int n = m + 1; n < 25; ++n)
+						if (window[n] < window[min])
+							min = n;
+						//   Put found minimum element in its place  
+						unsigned char temp = window[m];
+						window[m] = window[min];
+						window[min] = temp;
+					}
+					imageResult5.at<Vec3b>(y, x)[c] = window[12];
+
+				}
+			}
+			else
+			{
+				imageResult5.at<Vec3b>(y, x) = image.at<Vec3b>(y, x);
+			}
+
+		}
+	}
+
+
+
+	/*result display*/
+	cv::namedWindow("3*3 image median filter", WINDOW_AUTOSIZE);
+	cv::imshow("3*3 image median filter", imageResult3);
+
+	cv::namedWindow("5*5 image median filter", WINDOW_AUTOSIZE);
+	cv::imshow("5*5 image median filter", imageResult5);
+}
+
+/*Otsu's method used for calculate global threshold*/
+int Otsu(Mat im)
+{
+	//im: input image
+	//output: threshold with Otsu
+	Mat image;
+	cvtColor(im, image, CV_BGR2GRAY);//get grey image
+
+	int M = image.rows;
+	int N = image.cols;
+	double w0;//ratio of number pixel < T
+	double w1;//ratio of number pixel > T
+	int g[256];//storage all the g with different T
+	int Tmax = 0;//calculation Tmax
+	for (int T = 0; T < 255; T++)//ergodic threshold
+	{
+		double N0 = 0.0;//number of pixel < T
+		double N1 = 0.0;//number of pixel > T
+		int u0 = 0.0;//average of number pixel < T
+		int u1 = 0.0;//average of number pixel > T
+		for (int y = 0; y < M; y++)//ergodic image, calculate N0 and N1 
+		{
+			for (int x = 0; x < N; x++)
+			{
+				if (image.at<uchar>(y, x) < T)
+				{
+					N0 = N0 + 1.0;
+					u0 = u0 + image.at<uchar>(y, x);
+				}
+				else
+				{
+					N1 = N1 + 1.0;
+					u1 = u1 + image.at<uchar>(y, x);
+				}
+			}
+		}
+		w0 = N0 / (M*N);//calculation w0
+		w1 = N1 / (M*N);//calculation w1
+		u0 = u0 / N0;//calculation u0
+		u1 = u1 / N1;//calculation u1
+		g[T] = w0*w1*(u0 - u1)*(u0 - u1) + 0.5;//calculation g[T]
+		if (g[T] > g[Tmax])//get Tmax  
+		{
+			Tmax = T;
+		}
+	}
+	return Tmax;
+}
+
+/*binarization filter with Otsu's method*/
+void ImageBinarization(Mat image)
+{
+	//image: input picture
+	//B: binarization number
+	//output: binarization filtered image
+	Mat imageResult;
+	cvtColor(image, imageResult, CV_BGR2GRAY);
+	int T = Otsu(image);//get threshold from Otsu
+	for (int y = 0; y < image.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < image.cols; x++)
+		{
+			if (imageResult.at<uchar>(y, x) < T)
+				imageResult.at<uchar>(y, x) = 0;
+			else
+				imageResult.at<uchar>(y, x) = 255;
+		}
+	}
+	/*result display*/
+	cv::namedWindow("image binarization filter", WINDOW_AUTOSIZE);
+	cv::imshow("image binarization filter", imageResult);
+}
+
+/*sharpen images with Laplacian through masking process*/
+void ImageLaplacian(Mat image)
+{
+
+	//image: input picture
+	//output:sharpen images with Laplacian through masking process
+
+	Mat imageResult(image.rows, image.cols, image.type());//build result image
+	for (int y = 0; y < image.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < image.cols; x++)
+		{
+			if (x>0 && y>0 && x < image.cols - 1 && y < image.rows - 1)
+			{
+
+				for (int c = 0; c < 3; c++)//pixel assignment 
+				{
+					imageResult.at<Vec3b>(y, x)[c] =
+						abs(image.at<Vec3b>(y, x - 1)[c] + image.at<Vec3b>(y, x + 1)[c] + image.at<Vec3b>(y - 1, x)[c] + image.at<Vec3b>(y + 1, x)[c] - image.at<Vec3b>(y, x)[c] * 4);
+				}
+			}
+			else
+			{
+				imageResult.at<Vec3b>(y, x) = image.at<Vec3b>(y, x);
+			}
+
+
+		}
+	}
+
+
+
+	/*result display*/
+	cv::namedWindow("sharpen images with Laplacian", WINDOW_AUTOSIZE);
+	cv::imshow("sharpen images with Laplacian", imageResult);
+
+}
+
+/*sharpen images with Sobel through masking process*/
+void ImageSobel(Mat image)
+{
+
+	//image: input picture
+	//output:sharpen images with Sobel through masking process
+
+	Mat imageResult(image.rows, image.cols, image.type());//build result image by Sobel verticel operators
+	int Gx, Gy;
+	for (int y = 0; y < image.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < image.cols; x++)
+		{
+			if (x>0 && y>0 && x < image.cols - 1 && y < image.rows - 1)
+			{
+
+				for (int c = 0; c < 3; c++)//pixel assignment 
+				{
+
+						Gx = -image.at<Vec3b>(y - 1, x - 1)[c] - 2*image.at<Vec3b>(y, x - 1)[c] - image.at<Vec3b>(y + 1, x - 1)[c]
+						+ image.at<Vec3b>(y - 1, x + 1)[c] + 2*image.at<Vec3b>(y, x + 1)[c] + image.at<Vec3b>(y + 1, x + 1)[c];
+
+						Gy = image.at<Vec3b>(y - 1, x - 1)[c] + 2*image.at<Vec3b>(y - 1, x)[c] + image.at<Vec3b>(y - 1, x + 1)[c]
+						- image.at<Vec3b>(y + 1, x - 1)[c] - 2*image.at<Vec3b>(y + 1, x)[c] - image.at<Vec3b>(y + 1, x + 1)[c];
+
+						imageResult.at<Vec3b>(y, x)[c] = pow(Gx*Gx + Gy*Gy, 0.5);
+
+				}
+			}
+			else
+			{
+				imageResult.at<Vec3b>(y, x) = imageResult.at<Vec3b>(y, x);
+			}
+		}
+	}
+
+
+
+	/*result display*/
+	cv::namedWindow("sharpen images with Sobel vertical operators", WINDOW_AUTOSIZE);
+	cv::imshow("sharpen images with Sobel vertical operators", imageResult);
+
+}
+
+/*Gammma correction*/
+void ImageGamma(Mat image, double gamma)
+{
+
+	//image: input picture
+	//gamma: various value gamma
+	//output:image after Gamma correction with c = 1 and gamma input
+	//variance calculation
+
+	Mat imageResult(image.rows, image.cols, image.type());//build result image
+	double Var[3] = { 0.0, 0.0, 0.0 }; //variance calculation
+	double Mu[3] = { 0.0, 0.0, 0.0 }; //mu calculation
+	for (int y = 0; y < image.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < image.cols; x++)
+		{
+			for (int c = 0; c < 3; c++)//pixel assignment 
+			{
+				imageResult.at<Vec3b>(y, x)[c] = pow(image.at<Vec3b>(y, x)[c], gamma);//get result image
+				Mu[c] += imageResult.at<Vec3b>(y, x)[c];//calculation Mu of result image
+			}
+
+		}
+	}
+	Mu[0] = Mu[0] / double(image.rows*image.cols);
+	Mu[1] = Mu[1] / double(image.rows*image.cols);
+	Mu[2] = Mu[2] / double(image.rows*image.cols);
+
+	for (int y = 0; y < image.rows; y++)//ergodic translation matrix to calculation variance
+	{
+		for (int x = 0; x < image.cols; x++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				Var[c] += pow((imageResult.at<Vec3b>(y, x)[c] - Mu[c]), 2);
+			}
+		}
+	}
+	Var[0] = Var[0] / double(image.rows*image.cols);
+	Var[1] = Var[1] / double(image.rows*image.cols);
+	Var[2] = Var[2] / double(image.rows*image.cols);
+
+	/*result display*/
+	cv::namedWindow("Gammma correction image", WINDOW_AUTOSIZE);
+	cv::imshow("Gammma correction image", imageResult);
+	cout << "channel 1 variance=\n" << Var[0] << endl << endl;
+	cout << "channel 2 variance=\n" << Var[1] << endl << endl;
+	cout << "channel 3 variance=\n" << Var[2] << endl << endl;
+
+}
+
+/*create histogram and using histogram enhancement function */
+void ImageHistogramGrey(Mat img)
+{
+	//image:input RGB image
+	//input image and output histogram equalization RGB image
+	Mat image;//grey transform
+	cvtColor(img, image, CV_BGR2GRAY);
+
+	Mat imageResult(image.rows, image.cols, image.type());//build output image
+
+	/*calculate histogram*/
+	int histogram[256];//build histogram
+	memset(histogram, 0, 256 * sizeof(int));//initialize with 0
+	int pixelCount = image.cols*image.rows;
+	uchar *imageData = image.data;//use pointer .Data 
+	for (int i = 0; i <= pixelCount - 1; ++i)//assignment
+	{
+		int gray = imageData[i];
+		histogram[gray]++;
+	}
+
+	/*calculate CDF*/
+	int CDF[256];
+	CDF[0] = 1.0*histogram[0] / pixelCount * 255;//calculate intensity Sk
+	int sum = histogram[0];
+	for (int i = 1; i <= 255; ++i)//assignment
+	{
+		sum += histogram[i];
+
+		CDF[i] = 1.0*sum / pixelCount * 255;
+	}
+
+	/*grey level transformation*/
+	uchar *dataOfDst = imageResult.data;//use pointer .data
+	for (int i = 0; i <= pixelCount - 1; ++i)//assignment 
+		dataOfDst[i] = CDF[imageData[i]];
+
+	/*result display*/
+	cv::namedWindow("grey level image", WINDOW_AUTOSIZE);
+	cv::imshow("grey level image", image);
+
+	cv::namedWindow("histogram enhancement image", WINDOW_AUTOSIZE);
+	cv::imshow("histogram enhancement image", imageResult);
+}

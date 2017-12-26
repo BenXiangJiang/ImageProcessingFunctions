@@ -1,0 +1,209 @@
+/*
+Class Project 1
+Use two images for each operation to do the following operations and write
+down their advantages and disadvantages and explain your results:
+1. Image reduction:
+• Alternative line reduction
+• Fractal linear reduction to reduce images to any smaller size
+2. Use two images to perform image enlargement:
+• Pixel replication
+• Nearest enlargement
+• Bilinear interpolation
+• Bicubic interpolation
+• Fractal linear expansion to expand images to any larger size
+3. Perform negative image operation
+• On gray images
+• On color images
+*/
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <math.h>
+#include <iostream>
+#include <string>
+using namespace cv;
+using namespace std;
+/*pixel scaling*/
+void PixelScaling(Mat image, double yRatio, double xRatio)
+{
+       //xRatio: scaling ratio of col
+       //yRatio: scaling ratio of row
+       //image: input picture
+       int row = image.rows * yRatio + 0.5; //row after scaling
+       int col = image.cols * xRatio + 0.5; //col after scaling
+       Mat imageResult(row, col, image.type());//create scaling matrix
+       for (int y = 0; y < row - 1; y++)//ergodic scaling matrix
+       {
+              for (int x = 0; x < col - 1; x++)
+              {
+                     int yOrigin = (int)((y + 1) / yRatio) - 1;//find y coord in input picture
+                     int xOrigin = (int)((x + 1) / xRatio) - 1;//find x coord in input picture                     
+                     if (xOrigin < 0) xOrigin = 0;
+                     if (yOrigin < 0) yOrigin = 0;
+                     imageResult.at<Vec3b>(y, x) = image.at<Vec3b>(yOrigin, xOrigin);//pixel assignment
+              }
+       }
+       /*result display*/
+       cv::namedWindow("pixel scaling picture", WINDOW_AUTOSIZE);
+       cv::imshow("pixel scaling picture", imageResult);
+}
+/*nearest interpolation */
+void NearestInterpolation(Mat image, double yRatio, double xRatio)
+{
+       //xRatio: scaling ratio of col
+       //yRatio: scaling ratio of row
+       //image: input picture
+       int row = image.rows * yRatio + 0.5; //row after scaling
+       int col = image.cols * xRatio + 0.5; //col after scaling
+       Mat imageResult(row, col, image.type());//create scaling matrix
+       for (int y = 0; y < row - 1; y++)//ergodic scaling matrix
+       {
+              for (int x = 0; x < col - 1; x++)
+              {
+                     int yOrigin = (int)((y + 1) / yRatio + 0.5) - 1;//find y coord in input picture
+                     int xOrigin = (int)((x + 1) / xRatio + 0.5) - 1;//find x coord in input picture
+                     if (xOrigin < 0) xOrigin = 0;
+                     if (yOrigin < 0) yOrigin = 0;
+                     imageResult.at<Vec3b>(y, x) = image.at<Vec3b>(yOrigin, xOrigin);//pixel assignment
+              }
+       }
+       /*result display*/
+       cv::namedWindow("nearest interpolation picture", WINDOW_AUTOSIZE);
+       cv::imshow("nearest interpolation picture", imageResult);
+}
+/*bilinear interpolation*/
+void BilinearInterpolation(Mat image, double yRatio, double xRatio)
+{
+       //xRatio: scaling ratio of col
+       //yRatio: scaling ratio of row
+       //image: input picture
+       int row = image.rows * yRatio + 0.5; //row after scaling
+       int col = image.cols * xRatio + 0.5; //col after scaling
+       Mat imageResult(row, col, image.type());//create scaling matrix
+       for (int y = 0; y < row - 1; y++)//ergodic scaling matrix
+       {
+              for (int x = 0; x < col - 1; x++)
+              {
+                     double yOrigin = (y + 1.0) / yRatio - 1.0;//find y coord in input picture
+                     double xOrigin = (x + 1.0) / xRatio - 1.0;//find x coord in input picture
+                     if (xOrigin < 0) xOrigin = 0;
+                     if (yOrigin < 0) yOrigin = 0;
+                     int i = yOrigin;//create i
+                     double u = yOrigin - i;//create u
+                     int j = xOrigin;//create j
+                     double v = xOrigin - j;//create v
+                     int i1 = i + 1;
+                     int j1 = j + 1;
+                     if (i1 > image.rows - 1) i1 = image.rows - 1;
+                     if (j1 > image.rows - 1) j1 = image.cols - 1;
+                     imageResult.at<Vec3b>(y, x) = (1 - u)*(1 - v)*image.at<Vec3b>(i, j) + (1 - u)*v*image.at<Vec3b>(i, j + 1) + (1 - v)*u*image.at<Vec3b>(i + 1, j) + u*v*image.at<Vec3b>(i + 1, j + 1);  //pixel assignment
+              }
+       }
+       /*result display*/
+       cv::namedWindow("bilinear interpolation picture", WINDOW_AUTOSIZE);
+       cv::imshow("bilinear interpolation picture", imageResult);
+}
+/*bicubic interpretation primary function S(w)，used for bicubic interpretation*/
+/*bicubic interpretation primary function S(w)，used for bicubic interpretation*/
+double Spline(double w)
+{
+       //w function input
+       if (w > -1.5 && w < -0.5)
+       {
+              return(0.5 * pow(w + 1.5, 2.0));
+       }
+       else if (w >= -0.5 && w <= 0.5)
+       {
+              return 3.0 / 4.0 - (w * w);
+       }
+       else if ((w > 0.5 && w < 1.5))
+       {
+              return(0.5 * pow(w - 1.5, 2.0));
+       }
+       return 0.0;
+}
+/*bicubic interpretation with primary function S(w)*/
+void BicubicInterpolation(Mat image, double yRatio, double xRatio){
+       //xRatio: scaling ratio of col
+       //yRatio: scaling ratio of row
+       //image: input picture
+       int row = image.rows*yRatio;
+       int col = image.cols*xRatio;
+       Mat result_img(row, col, CV_8UC3, Scalar(0));
+       double A, B;
+       int a, b;
+       for (int y = 0; y < row - 1; y++) {
+              for (int x = 0; x < col - 1; x++) {
+                     int xOrigin = (int)(x / xRatio);
+                     if (xOrigin < 1){ xOrigin = 1; }
+                     if (xOrigin > image.cols - 3){ xOrigin = image.cols - 3; }
+                     int yOrigin = (int)(y / yRatio);
+                     if (yOrigin < 1){ yOrigin = 1; }
+                     if (yOrigin > image.rows - 3){ yOrigin = image.rows - 3; }
+                     int j = (int)xOrigin;
+                     double v = (double)x / (double)xRatio - (int)xOrigin;
+                     int i = (int)yOrigin;
+                     double u = (double)y / (double)yRatio - (int)yOrigin;
+                     for (a = -1; a < 3; a++)
+                     {
+                           A = Spline(a - v);
+                           for (b = -1; b < 3; b++)
+                           {
+                                  B = Spline(b - u);
+                                  Vec3b p1 = image.at<Vec3b>(i + b, j + a);
+                                  result_img.at<Vec3b>(y, x) += A*B*p1;
+                           }
+                     }
+              }
+       }
+       /*result display*/
+       cv::namedWindow("bicubic interpolation picture", WINDOW_AUTOSIZE);
+       cv::imshow("bicubic interpolation picture", result_img);
+}
+void NegativeImage(Mat image)
+{
+       //image: input image
+       int row = image.rows;//row of input image
+       int col = image.cols;//col of input image
+       for (int y = 0; y < row - 1; y++) {
+              for (int x = 0; x < col - 1; x++) {
+                     for (int z = 0; z < 3; z++)
+                     {
+                           image.at<Vec3b>(y, x)[z] = 255 - image.at<Vec3b>(y, x)[z];//negative image for the three channels of Vec3b
+                     }
+              }
+       }
+       /*result display*/
+       cv::namedWindow("negative picture", WINDOW_AUTOSIZE);
+       cv::imshow("negative picture", image);
+}
+int main()
+{
+       /*input grey image*/
+       Mat image1 = imread("D:\\labstuff\\PGM_IMAGES\\lena.pgm");
+       CV_Assert(image1.depth() == CV_8U);    //change image.type into CV_8U
+       /*result display*/
+       cv::namedWindow("input image1", WINDOW_AUTOSIZE);
+       cv::imshow("input image1", image1);
+       PixelScaling(image1, 3, 3);
+       NearestInterpolation(image1, 3, 3);
+       BilinearInterpolation(image1, 3, 3);
+       BicubicInterpolation(image1, 3, 3);
+       NegativeImage(image1);
+       //waitKey(0);
+       /*input RGB image*/
+       Mat image2 = imread("D:\\labstuff\\opencv\\sources\\samples\\data\\lena.jpg");
+       CV_Assert(image2.depth() == CV_8U);    //change image.type into CV_8U
+       /*result display*/
+       cv::namedWindow("input image2", WINDOW_AUTOSIZE);
+       cv::imshow("input image2", image2);
+       PixelScaling(image2, 0.325, 0.325);
+       NearestInterpolation(image2, 0.325, 0.325);
+       BilinearInterpolation(image2, 0.325, 0.325);
+       BicubicInterpolation(image2, 0.325, 0.325);
+       NegativeImage(image2);
+       waitKey(0);//wait any key
+       return(0);
+}

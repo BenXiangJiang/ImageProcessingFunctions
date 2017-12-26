@@ -1,0 +1,449 @@
+/*
+Class Project 4
+1. Use HPF and thresholding to sharpen fingerprint1.pgm and
+fingerprint2.pgm
+2. Use a homomorphic filter to enhance bridge.pgm and goldhill.pgm
+3. Add sinusoidal noise to lena.pgm and use bandreject filter to recover
+lena.pgm
+4. Use your cell phone to take an image of your face as template, an
+image with your face, and another image without your face. Use
+correlation to determine which of two images contains your face and
+where the face is located in the large image (note, the face template
+may not be same as the one in the image)
+*/
+#include "FunctionName.h"
+Mat MoveToCenter(Mat srcImg, Mat &dstImg)
+{
+    //srcImg: input image
+    //dstImg: output image with move to center
+    //assignment
+    for (int y = 0; y < srcImg.rows; y++) {
+        float *pdst = dstImg.ptr<float>(y);
+        float *psrc = srcImg.ptr<float>(y);
+        for (int x = 0; x < srcImg.cols; x++) {
+            pdst[x] = pow(-1.0, x + y + 2)*psrc[x];
+        }
+    }
+    return dstImg;
+}
+Mat DFT(Mat srcImg, Mat &dstImgReal, Mat &dstImgImgi)
+{
+    //srcImg: input image
+    //dstImg: output image
+    //DFT of input image and output image with real part and imaginary part
+    //input image and convert to gray float image
+    Mat padded;                 //prepare padded matrix
+    float N = getOptimalDFTSize(srcImg.rows);//get optimal dft size
+    float M = getOptimalDFTSize(srcImg.cols);
+    //input image padded
+    copyMakeBorder(srcImg, padded, 0, N - srcImg.rows, 0, M - srcImg.cols, BORDER_CONSTANT, Scalar::all(0));
+    // prepare planes[2] where planes[0] is real part and planes[1] is imaginary part
+    MoveToCenter(padded, padded);// move padded to center
+    Mat planes[] = { Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F) };
+    Mat complexI;
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    dft(complexI, complexI);        //dft
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    dstImgReal = planes[0];
+    dstImgImgi = planes[1];
+    return dstImgImgi, dstImgReal;
+}
+Mat IDFT(Mat srcImgReal, Mat srcImgImgi, Mat &dstImg)
+{
+    //srcImgReal:real part input image
+    //srcImgImgi:imginary part input image
+    //dstImg: output image
+    //IDFT of input image
+    //input image and convert to gray float image
+    Mat planes[] = { srcImgReal, srcImgImgi};
+    Mat complexI;
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    idft(complexI, complexI);
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    dstImg = planes[0]; //ger real part of idft image as dstimage
+    MoveToCenter(dstImg, dstImg);// move dstImg to center
+    return dstImg;
+}
+Mat IDHPFF(Mat &dstImg, float D0, int M, int N)
+{
+    //D0: cutoff frequency of ideal highpass filter function(IDHPFF)
+    //M,N: cols and rows of dstImg
+    //dstImg: output ideal highpass filter function
+    //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = pow(float(u) - float((M - 1.0) / 2.0), 2.0) + pow(float(v) - float((N - 1.0) / 2.0), 2.0);//sqrt of distance from image center
+            if (D >= D0)
+            {
+                p[u] = 1;//assignment
+            }
+        }
+    }
+    return dstImg;
+}
+Mat IDHPF(Mat srcImg, Mat &dstImg, Mat &dstImgOrigin,  float D0)
+{
+    //srcImg: input image
+    //D0: cutoff frequency
+    //dstImg: output image with ideal highpass filter and binalization
+    //dstImgOrigin: output image with ideal highpass filter
+    //1 DFT of input image and get real and imag part in frequency
+    cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+    srcImg.convertTo(srcImg, CV_32F);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare IDHPFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));//prepare H(u,v)
+    IDHPFF(H, D0, srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg
+    IDFT(dstImgReal, dstImgImgi, dstImg);
+    //5 normalize and binalization
+    normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImgOrigin, CV_8U);
+    dstImg.convertTo(dstImg, CV_8U);
+    threshold(dstImg, dstImg, 0, 255, THRESH_BINARY_INV | THRESH_OTSU);//binalization using OTSU's method
+    return dstImg, dstImgOrigin;
+}
+Mat BHPFF(Mat &dstImg, float D0, int n, int M, int N)
+{
+    //D0: cutoff frequency of ideal highpass filter function(IDHPFF)
+    //M,N: cols and rows of dstImg
+    //dstImg: output butterworth highpass filter function
+    //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = pow(float(u) - float((M - 1.0) / 2.0), 2.0) + pow(float(v) - float((N - 1.0) / 2.0), 2.0);//sqrt of distance from image center
+            p[u] = 1 / (1 + pow(D0/D,2*n));
+        }
+    }
+    return dstImg;
+}
+Mat BHPF(Mat srcImg, Mat &dstImg, Mat &dstImgOrigin, float D0,int n)
+{
+    //srcImg: input image
+    //D0: cutoff frequency
+    //dstImg: output image with Gaussian highpass filter and binalization
+    //dstImgOrigin: output image with butterworth highpass filter
+    //1 DFT of input image and get real and imag part in frequency
+    cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+    srcImg.convertTo(srcImg, CV_32F);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare BHPFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));//prepare H(u,v)
+    BHPFF(H, D0,n, srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg
+    IDFT(dstImgReal, dstImgImgi, dstImg);
+    //5 normalize and binalization
+    normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImgOrigin, CV_8U);
+    dstImg.convertTo(dstImg, CV_8U);
+    threshold(dstImg, dstImg, 0, 255, THRESH_BINARY_INV | THRESH_OTSU);//binalization using OTSU's method
+    return dstImg;
+}
+Mat GHPFF(Mat &dstImg, float D0, int M, int N)
+{
+    //D0: cutoff frequency of gaussian highpass filter function (GHPFF)
+    //M,N: cols and rows of dstImg
+    //dstImg: output gaussian highpass filter function
+    //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = pow(float(u) - float((M-1.0) / 2.0), 2.0) + pow(float(v) - float((N-1.0) / 2.0), 2.0);//sqrt of distance from image center
+            p[u] = 1.0 - exp(-D / (2 * pow(D0, 2)));//assignment
+        }
+    }
+    return dstImg;
+}
+Mat GHPF(Mat srcImg, Mat &dstImg, Mat &dstImgOrigin, float D0)
+{    //srcImg: input image
+    //D0: cutoff frequency
+    //dstImg: output image with Gaussian highpass filter and binalization
+    //dstImgOrigin: output image with Gaussian highpass filter
+    //1 DFT of input image and get real and imag part in frequency
+    cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+    srcImg.convertTo(srcImg, CV_32F);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare GHPFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));//prepare H(u,v)
+    GHPFF(H, D0, srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg
+    IDFT(dstImgReal, dstImgImgi,dstImg);
+    //5 normalize and binalization
+    normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImgOrigin, CV_8U);
+    dstImg.convertTo(dstImg, CV_8U);    
+    threshold(dstImg, dstImg, 0, 255, THRESH_BINARY_INV | THRESH_OTSU);//binalization using OTSU's method
+    return dstImg;
+}
+Mat ImageHistogramGrey(Mat &img)
+{
+    //image:input RGB image
+    //input image and output histogram equalization image
+    Mat image;//grey transform
+    /*calculate histogram*/
+    int histogram[256];//build histogram
+    memset(histogram, 0, 256 * sizeof(int));//initialize with 0
+    int pixelCount = image.cols*image.rows;
+    uchar *imageData = image.data;//use pointer .Data
+    for (int i = 0; i <= pixelCount - 1; ++i)//assignment
+    {
+        int gray = imageData[i];
+        histogram[gray]++;
+    }
+    /*calculate CDF*/
+    int CDF[256];
+    CDF[0] = 1.0*histogram[0] / pixelCount * 255;//calculate intensity Sk
+    int sum = histogram[0];
+    for (int i = 1; i <= 255; ++i)//assignment
+    {
+        sum += histogram[i];
+        CDF[i] = 1.0*sum / pixelCount * 255;
+    }
+    /*grey level transformation*/
+    uchar *dataOfDst = img.data;//use pointer .data
+    for (int i = 0; i <= pixelCount - 1; ++i)//assignment
+        dataOfDst[i] = CDF[imageData[i]];
+    return img;
+}
+Mat HomoFF(Mat &dstImg, int D0, float gammaH, float gammaL, float c, int M, int N)
+{       //srcImg: input image
+        //dstImg: output image
+        //D0: cutoff frequency
+        //gammaH: highpass filter variable
+        //gammaL: lowpass filter variable
+        //c: transfer function variable
+        //M,N: cols and rows of dstImg
+        //output Homomorphic filter
+        //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = pow(float(u) - float((M - 1.0) / 2.0), 2.0) + pow(float(v) - float((N - 1.0) / 2.0), 2.0);//sqrt of distance from image center
+            p[u] = (gammaH - gammaL)*(1.0 - exp(-c * D / pow(D0, 2))) + gammaL;//assignment
+        }
+    }
+    return dstImg;
+}
+Mat HomoF(Mat srcImg, Mat &dstImg, float D0, float gammaH, float gammaL, float c)
+{       
+    //srcImg: input image
+    //D0: cutoff frequency
+    //gammaH: highpass filter variable
+    //gammaL: lowpass filter variable
+    //c: transfer function variable
+    //dstImg: output image with Homomorphic filter
+    //1 DFT of input image (after log transfer) and get real and imag part in frequency
+    cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+    srcImg.convertTo(srcImg, CV_32F);
+    log(srcImg + Scalar::all(1.0), srcImg);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare HomoFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));//prepare H(u,v)
+    HomoFF(H, D0, gammaH, gammaL, c, srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg
+    IDFT(dstImgReal, dstImgImgi, dstImg);
+    //5 normalize and exp transfer
+    normalize(dstImg, dstImg, 0.0, 1.0, CV_MINMAX);//normalize to avoid overflow
+    exp(dstImg, dstImg);
+    normalize(dstImg, dstImg, 0.0, 256.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImg, CV_8U);
+    ImageHistogramGrey(dstImg);//image enhancing with histogram equalization
+    return dstImg;
+}
+Mat AddSinN(Mat srcImg, Mat &dstImg, float R,float P)
+{    
+    //R: sinusoidal noise circle radius
+    //P: adding sinusoidal noise number
+    //srcImg: input image
+    //dstImg: output sin noice image
+        //1 build sin noice
+        float M = srcImg.cols;
+        float N = srcImg.rows;
+        dstImg = Mat::zeros(M, N, CV_32FC1);
+        //get the center of x and y axis
+        float xC = (M - 1.0) / 2.0;
+        float yC = (N - 1.0) / 2.0;
+        //assignment
+        for (float i = 0.0; i <= 360.0; i = i + 30.0)
+        {
+            int x = xC + R * cos(r2a(i));
+            int y = yC + R * sin(r2a(i));
+            dstImg.at<float>(x, y) = P;
+        }
+        imshow("sinusoidal noise", dstImg);
+        //2 DFT of input image and get real and imag part in frequency
+        cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+        srcImg.convertTo(srcImg, CV_32F);
+        Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+        Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+        DFT(srcImg, dstImgReal, dstImgImgi);
+        //3 add sin noice
+        add(dstImgReal, dstImg, dstImgReal);
+        add(dstImgImgi, dstImg, dstImgImgi);
+        //IDFT
+        IDFT(dstImgReal, dstImgImgi, dstImg);
+        //normalize
+        normalize(dstImg, dstImg, 0.0, 256.0, CV_MINMAX);//normalize
+        dstImg.convertTo(dstImg, CV_8U);
+        return dstImg;
+    }
+Mat IDBRFF(Mat &dstImg, float D0, float W, int M, int N)
+{
+    //D0: cutoff frequency of ideal highpass filter function(IDHPFF)
+    //M,N: cols and rows of dstImg
+    //dstImg: output ideal band reject filter function
+    //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = sqrt(pow(float(u) - float((M - 1.0) / 2.0), 2.0) + pow(float(v) - float((N - 1.0) / 2.0), 2.0));//sqrt of distance from image center
+            if (D0 - W/2< D & D <D0 + W/2)
+            {
+                p[u] = 0;//assignment
+            }
+        }
+    }
+    imshow("ideal bandreject filter", dstImg);
+    return dstImg;
+}
+Mat IDBRF(Mat srcImg, Mat &dstImg, float D0, float W)
+{
+    //srcImg: input image
+    //D0: cutoff frequency
+    //dstImg: output image with ideal band reject filter and binalization
+    //dstImgOrigin: output image with ideal band reject filter
+    //1 DFT of input image (after log transfer) and get real and imag part in frequency
+    srcImg.convertTo(srcImg, CV_32F);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare IDBRFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(1));//prepare H(u,v)
+    IDBRFF(H, D0,W,srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg and dstImgNoise
+    IDFT(dstImgReal, dstImgImgi, dstImg);
+    //5 normalize and binalization
+    normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImg, CV_8U);
+    return dstImg;
+}
+Mat BBRFF(Mat &dstImg, float D0, float W, int n, int M, int N)
+{
+    //D0: cutoff frequency of ideal highpass filter function(IDHPFF)
+    //M,N: cols and rows of dstImg
+    //dstImg: output butterworth bandpass filter function
+    //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = sqrt(pow(float(u) - float((M - 1.0) / 2.0), 2.0) + pow(float(v) - float((N - 1.0) / 2.0), 2.0));//sqrt of distance from image center
+            p[u] = 1 / (1 + pow(D*W / (pow(D, 2) - pow(D0, 2)), 2 * n));    
+        }
+    }
+    imshow("butterworth bandreject filter", dstImg);
+    return dstImg;
+}
+Mat BBRF(Mat srcImg, Mat &dstImg, float D0, float W, int n)
+{
+    //srcImg: input image
+    //D0: cutoff frequency
+    //dstImg: output image with butterworth band reject filter and binalization
+    //dstImgOrigin: output image with ideal band reject filter
+    //1 DFT of input image (after log transfer) and get real and imag part in frequency
+    srcImg.convertTo(srcImg, CV_32F);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare IDBRFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));//prepare H(u,v)
+    BBRFF(H, D0, W, n, srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg and dstImgNoise
+    IDFT(dstImgReal, dstImgImgi, dstImg);
+    //5 normalize and binalization
+    normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImg, CV_8U);
+    return dstImg;
+}
+Mat GBRFF(Mat &dstImg, float D0, float W, int M, int N)
+{
+    //D0: cutoff frequency of ideal highpass filter function(IDHPFF)
+    //M,N: cols and rows of dstImg
+    //dstImg: output gaussian bandpass filter function
+    //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = sqrt(pow(float(u) - float((M - 1.0) / 2.0), 2.0) + pow(float(v) - float((N - 1.0) / 2.0), 2.0));//sqrt of distance from image center
+            p[u] = 1 - exp(-pow((pow(D, 2) - pow(D0, 2)) / (D*W), 2));
+        }    
+    }
+    imshow("gaussian bandreject filter", dstImg);
+    return dstImg;
+}
+Mat GBRF(Mat srcImg,  Mat &dstImg, float D0, float W)
+{
+    //srcImg: input image
+    //D0: cutoff frequency
+    //dstImg: output image with gaussian band reject filter and binalization
+    //dstImgOrigin: output image with ideal band reject filter
+    //1 DFT of input image (after log transfer) and get real and imag part in frequency
+    srcImg.convertTo(srcImg, CV_32F);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare IDBRFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));//prepare H(u,v)
+    GBRFF(H, D0, W, srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg and dstImgNoise
+    IDFT(dstImgReal, dstImgImgi, dstImg);
+    //5 normalize and binalization
+    normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImg, CV_8U);
+    return dstImg;
+}
+

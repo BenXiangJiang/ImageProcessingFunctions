@@ -1,0 +1,249 @@
+/*
+Class Project 9
+1. Use Otus’s method on original image
+large_septagon_gaussian_noise_mean_0_std_50_added.pgm and its 5x5
+smoothed image to perform segmentation to output binary images.
+2. Partition method first and then Otsu’s method to segment
+septagon_noisy_shaded.pgm
+3. Use moving average thresholding to segment spot_shaded_text_image.pgm
+4. Use region growing method to perform segmentation on
+defective_weld.pgm and noisy_region.pgm
+*/
+
+#include "FunctionName.h"
+int Otsu(Mat image)
+{
+        //im: input image
+        //output: threshold with Otsu
+        int M = image.rows;
+        int N = image.cols;
+        double w0;//ratio of number pixel < T
+        double w1;//ratio of number pixel > T
+        int g[256];//storage all the g with different T
+        int Tmax = 0;//calculation Tmax
+        for (int T = 0; T < 255; T++)//ergodic threshold
+        {
+               double N0 = 0.0;//number of pixel < T
+               double N1 = 0.0;//number of pixel > T
+               int u0 = 0.0;//average of number pixel < T
+               int u1 = 0.0;//average of number pixel > T
+               for (int y = 0; y < M; y++)//ergodic image, calculate N0 and N1
+               {
+                       for (int x = 0; x < N; x++)
+                       {
+                              if (image.at<uchar>(y, x) < T)
+                              {
+                                      N0 = N0 + 1.0;
+                                      u0 = u0 + image.at<uchar>(y, x);
+                              }
+                              else
+                              {
+                                      N1 = N1 + 1.0;
+                                      u1 = u1 + image.at<uchar>(y, x);
+                              }
+                       }
+               }
+               w0 = N0 / (M*N);//calculation w0
+               w1 = N1 / (M*N);//calculation w1
+               u0 = u0 / N0;//calculation u0
+               u1 = u1 / N1;//calculation u1
+               g[T] = w0*w1*(u0 - u1)*(u0 - u1) + 0.5;//calculation g[T]
+               if (g[T] > g[Tmax])//get Tmax 
+               {
+                       Tmax = T;
+               }
+        }
+        return Tmax;
+}
+Mat OtsuMethod(Mat srcImg, Mat &dstImg)
+{
+        //srcImg: input image
+        //dstImg: output image with Otus's method and binalization threshold
+        int T = Otsu(srcImg);//using Otsu's method
+//      cout << "\nT = \n" << T;
+        threshold(srcImg, dstImg, T, 255, THRESH_BINARY);
+        return dstImg;
+}
+Mat PartiOtsuMethod(Mat srcImg, Mat &dstImg)
+{
+        //srcImg: input image
+        //dstImg: output image with partition and Otus's method and binalization threshold
+        //1 dividing srcImg
+        Mat tmp;
+        int cx = srcImg.cols / 3;
+        int cy = srcImg.rows / 2;
+        Mat q0(srcImg, Rect(0, 0, cx, cy));
+        Mat q1(srcImg, Rect(cx, 0, cx, cy));
+        Mat q2(srcImg, Rect(2*cx, 0, srcImg.cols- 2*cx, cy));
+        Mat q3(srcImg, Rect(0, cy, cx, srcImg.rows - cy));
+        Mat q4(srcImg, Rect(cx, cy, cx, srcImg.rows - cy));
+        Mat q5(srcImg, Rect(2*cx, cy, srcImg.cols - 2 * cx, srcImg.rows - cy));
+        //
+        //cv::imshow(" q0 before", q0);
+        //cv::imshow(" q1 before", q1);
+        //cv::imshow(" q2 before", q2);
+        //cv::imshow(" q3 before", q3);
+        //cv::imshow(" q4 before", q4);
+        //cv::imshow(" q5 before", q5);
+        //2 using Otsu's method in each dividing
+        int T0 = Otsu(q0);//using Otsu's method
+        int T1 = Otsu(q1);//using Otsu's method
+        int T2 = Otsu(q2);//using Otsu's method
+        int T3 = Otsu(q3);//using Otsu's method
+        int T4 = Otsu(q4);//using Otsu's method
+        int T5 = Otsu(q5);//using Otsu's method
+        cout << "\nT0 =\n" << T0;
+        cout << "\nT1 =\n" << T1;
+        cout << "\nT2 =\n" << T2;
+        cout << "\nT3 =\n" << T3;
+        cout << "\nT4 =\n" << T4;
+        cout << "\nT5 =\n" << T5;
+        //3 using binalization method
+        threshold(q0, q0, T0, 255, THRESH_BINARY);
+        threshold(q1, q1, T1, 255, THRESH_BINARY);
+        threshold(q2, q2, T2, 255, THRESH_BINARY);
+        threshold(q3, q3, T3, 255, THRESH_BINARY);
+        threshold(q4, q4, T4, 255, THRESH_BINARY);
+        threshold(q5, q5, T5, 255, THRESH_BINARY);
+        //cv::imshow(" q0 after", q0);
+        //cv::imshow(" q1 after", q1);
+        //cv::imshow(" q2 after", q2);
+        //cv::imshow(" q3 after", q3);
+        //cv::imshow(" q4 after", q4);
+        //cv::imshow(" q5 after", q5);
+        srcImg.copyTo(dstImg);
+        return dstImg;
+}
+Mat MovAveThres(Mat srcImg, Mat &dstImg, int n, int b)
+{
+        //srcImg: input image
+        //dstImg: output image with partition and Otus's method and binalization threshold
+        //n and b: last n visited pixels and suitable constant
+        int pixelCount = srcImg.cols*srcImg.rows;
+        cout << "\n"<<pixelCount;
+        uchar *srcImgData = srcImg.data;//use pointer .Data
+        for (int i = 0; i <= pixelCount - 1; ++i)//assignment
+        {
+               // find m
+               int m = 0;
+               if (i > n - 1)
+               {
+                       for (int j = 0; j < n; j++)
+                       {
+                              m = m + srcImgData[i - j] / n;
+                       }
+               }
+               else
+               {
+                       for (int j = 0; j < i; j++)
+                       {
+                              m = m + srcImgData[i - j] / i;
+                       }
+               }
+               // local threshold
+               if (srcImgData[i] > b*m)
+               {
+                       srcImgData[i] = 255;
+               }
+               else
+               {
+                       srcImgData[i] = 0;
+               }
+        }
+        srcImg.copyTo(dstImg);
+        return dstImg;
+}
+Mat RegionGrowing(Mat srcImg, Mat &dstImg, int x, int y,int df)
+{
+        //srcImg: input image
+        //dstImg,x,y: output image with region growing segmentation with point(x,y)
+        //df: growing different thresh
+        dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+        dstImg.at<uchar>(x, y) = 255;
+        int r1, c1, p,p1,dst;
+        int r = srcImg.rows;
+        int c = srcImg.cols;
+        int n = r*c;
+        int count = 0;
+        int list = 1;
+        Mat q = Mat::zeros(n, 2, CV_8U);
+        q.at<uchar>(0, 0) = x - 1;
+        q.at<uchar>(0, 1) = y - 1;
+        while (count < n)
+        {
+               r1 = q.at<uchar>(count, 0);//get x axis
+               c1 = q.at<uchar>(count, 1);//get y axis
+               p = srcImg.at<uchar>(r1, c1);//get pixel
+               for (int i = 1; i > -2; i--)
+               {
+                       for (int j = 1; j > -2; j--)
+                       {
+                              if ((r1 + i < r)&&(r1 + i > 0)&&(c1 + j < c)&&(c1 + j > 0))
+                              {
+                                      if ((abs(srcImg.at<uchar>(r1 + i, c1 + j) - p) <= df)&&(dstImg.at<uchar>(r1 + i, c1 + j) == 0))//compare with pixel value
+                                      {
+                                                     q.at<uchar>(list, 0) = r1 + i;
+                                                     q.at<uchar>(list, 1) = c1 + j;
+                                                     list++;
+                                                     dstImg.at<uchar>(r1 + i, c1 + j) = 255;
+                                      }
+                              }
+                       }
+               }
+               count++;
+        }
+        
+        return dstImg;
+}
+/*bicubic interpretation primary function S(w)，used for bicubic interpretation*/
+double Spline(double w)
+{
+        //w function input
+        if (w > -1.5 && w < -0.5)
+        {
+               return(0.5 * pow(w + 1.5, 2.0));
+        }
+        else if (w >= -0.5 && w <= 0.5)
+        {
+               return 3.0 / 4.0 - (w * w);
+        }
+        else if ((w > 0.5 && w < 1.5))
+        {
+               return(0.5 * pow(w - 1.5, 2.0));
+        }
+        return 0.0;
+}
+Mat BicubicInterpolation(Mat srcImg, Mat &dstImg, double yRatio, double xRatio) {
+        //xRatio: scaling ratio of col
+        //yRatio: scaling ratio of row
+        //srcImg: input picture
+        int row = srcImg.rows*yRatio + 0.5;
+        int col = srcImg.cols*xRatio + 0.5;
+        dstImg = Mat::zeros(row, col, CV_8U);
+        double A, B;
+        int a, b;
+        for (int y = 0; y < row; y++) {
+               for (int x = 0; x < col; x++) {
+                       int xOrigin = (int)(x / xRatio);
+                       if (xOrigin < 1) { xOrigin = 1; }
+                       if (xOrigin > srcImg.cols - 3) { xOrigin = srcImg.cols - 3; }
+                       int yOrigin = (int)(y / yRatio);
+                       if (yOrigin < 1) { yOrigin = 1; }
+                       if (yOrigin > srcImg.rows - 3) { yOrigin = srcImg.rows - 3; }
+                       int j = (int)xOrigin;
+                       double v = (double)x / (double)xRatio - (int)xOrigin;
+                       int i = (int)yOrigin;
+                       double u = (double)y / (double)yRatio - (int)yOrigin;
+                       for (a = -1; a < 3; a++)
+                       {
+                              A = Spline(a - v);
+                              for (b = -1; b < 3; b++)
+                              {
+                                      B = Spline(b - u);
+                                      dstImg.at<uchar>(y, x) += A*B*srcImg.at<uchar>(i + b, j + a);
+                              }
+                       }
+               }
+        }
+        return dstImg;
+}

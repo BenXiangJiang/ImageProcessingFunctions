@@ -1,0 +1,236 @@
+ #include "FunctionName.h"
+Mat BinaDila(Mat srcImg, Mat elem, Mat &dstImg)
+{
+        //srcImg: input image
+        //dstImg: output image with binary dilation
+        dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+        int tx, ty;
+        tx = (elem.rows - 1) / 2;
+        ty = (elem.cols - 1) / 2;
+        for (int i = 0; i < srcImg.rows; i++)//assignment
+        {
+               for (int j = 0; j < srcImg.cols; j++)
+               {
+                       if (srcImg.at<uchar>(i, j) == 255)
+                       {
+                              for (int x = 0; x < elem.rows; x++)
+                              {
+                                      for (int y = 0; y < elem.cols; y++)
+                                      {
+                                             if ((i + x - tx)>=0 && (i + x - tx)<srcImg.rows && (j + y - ty)>=0 && (j + y - ty) < srcImg.cols)
+                                             dstImg.at<uchar>(i + x -tx , j + y - ty) = elem.at<uchar>(x , y);//dilation
+                                      }
+                              }
+                       }
+               }
+        }
+        return dstImg;
+}
+Mat BinaEros(Mat srcImg, Mat elem, Mat &dstImg)
+{
+        //srcImg: input image
+        //dstImg: output image with binary erosion
+        dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+        int tx, ty;
+        tx = (elem.rows - 1) / 2;
+        ty = (elem.cols - 1) / 2;
+        for (int i = 0; i < srcImg.rows; i++)//assignment
+        {
+               for (int j = 0; j < srcImg.cols; j++)
+               {
+                       int sum = 0;
+                       for (int x = 0; x < elem.rows; x++)
+                       {
+                              for (int y = 0; y < elem.cols; y++)
+                              {
+                                      if ((i + x - tx) >= 0 && (i + x - tx) < srcImg.rows && (j + y - ty) >= 0 && (j + y - ty) < srcImg.cols)
+                                      {
+                                             if (srcImg.at<uchar>(i + x - tx, j + y - ty) == 255)
+                                             {
+                                                     sum = sum + 1;
+                                             }
+                                      }
+                              }
+                       }
+                       if (sum == elem.rows*elem.cols)
+                       {
+                              dstImg.at<uchar>(i,j) = 255;//dilation
+                       }
+               }
+        }
+        return dstImg;
+}
+Mat BinaOpen(Mat srcImg, Mat elem, Mat &dstImg)
+{       
+        //srcImg: input image
+        //dstImg: output image with binary opening
+        Mat TranImg;
+        BinaEros(srcImg, elem, TranImg);
+        BinaDila(TranImg, elem, dstImg);
+        return dstImg;
+}
+Mat BinaClos(Mat srcImg, Mat elem, Mat &dstImg)
+{       
+        //srcImg: input image
+        //dstImg: output image with binary closing
+        Mat TranImg;
+        BinaDila(srcImg, elem, TranImg);
+        BinaEros(TranImg, elem, dstImg);
+        return dstImg;
+}
+Mat BinaBoEx(Mat srcImg, Mat elem, Mat &dstImg)
+{
+        //srcImg: input image
+        //dstImg: output image with binary closing
+        BinaEros(srcImg, elem, dstImg);
+        dstImg = srcImg - dstImg;
+        return dstImg;
+}
+Mat BinaCoCo(Mat srcImg, Mat &dstImg)
+{
+        //srcImg: input image
+        //dstImg: output image with binary closing
+        dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8UC3);
+        for (int c = 0; c < 3; c++)//three channels to set more colors to output image
+        {
+               for (int i = 0; i < srcImg.rows; i++)//assignment
+               {
+                       for (int j = 0; j <srcImg.cols; j++)
+                       {
+                              //dstImg.at<Vec3b>(i, j)[c] = 255;
+                              if (srcImg.at<uchar>(i, j) == 255&& dstImg.at<Vec3b>(i,j)[c] == 0)
+                              {
+                                      int r1, c1;
+                                      int r = (rand() % (255));
+                                      int list = 1;//loop of iteration
+                                      int stop = 0;//stop condition 
+                                      int n = srcImg.rows*srcImg.cols;
+                                      Mat q = Mat::zeros(n, 2, CV_32F);
+                                      q.at<float>(0, 0) = i;
+                                      q.at<float>(0, 1) = j;
+                                      int count = 0;
+                                      while (stop == 0)
+                                      {       
+                                             
+                                             r1 = q.at<float>(count, 0);//get x axis
+                                             c1 = q.at<float>(count, 1);//get y axis
+                                             for (int x = 0; x < 3; x++)
+                                             {
+                                                     
+                                                     for (int y = 0; y < 3; y++)
+                                                     {
+                                                            
+                                                            if ((r1 + x - 1) >= 0 && (r1 + x - 1) < srcImg.rows && (c1 + y - 1) >= 0 && (c1 + y - 1) < srcImg.cols)
+                                                            {
+                                                                    if (srcImg.at<uchar>(r1 + x - 1, c1 + y - 1) == 255 && dstImg.at<Vec3b>(r1 + x - 1, c1 + y - 1)[c] == 0)
+                                                                    {
+                                                                            dstImg.at<Vec3b>(r1 + x - 1, c1 + y - 1)[c] = r;//compare and dilation
+                                                                            q.at<float>(list, 0) = r1 + x - 1;
+                                                                            q.at<float>(list, 1) = c1 + y - 1;
+                                                                           list++;
+                                                                           
+                                                                    }
+                                                            }
+                                                     }
+                                             }
+                                             count++;
+                                             if (count == list)
+                                                     stop = 1;
+                                      }
+                              }
+                       }
+               }
+        }       
+        return dstImg;
+}
+Mat BinaSePe(Mat srcImg, Mat &dstImg)
+{
+        //srcImg: input image
+        //dstImg: output image with binary closing
+        dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8UC3);
+        Mat CountSpace = Mat::zeros(srcImg.rows, srcImg.cols, CV_8UC3);
+        for (int c = 0; c < 3; c++)//three channels to set more colors to output image
+        {
+               for (int i = 0; i < srcImg.rows; i++)//assignment
+               {
+                       for (int j = 0; j <srcImg.cols; j++)
+                       {
+                              //dstImg.at<Vec3b>(i, j)[c] = 255;
+                              if (srcImg.at<uchar>(i, j) == 255 && dstImg.at<Vec3b>(i, j)[c] == 0)
+                              {
+                                      int r1, c1,r2,c2;//coordinate
+                                      int ra = 50, rb = 150, rc = 250,r;//pixel number
+                                      int list = 1,list1 = 1;//loop of iteration
+                                      int stop = 0,stop1 = 0;//stop condition      
+                                      int n = srcImg.rows*srcImg.cols;
+                                      Mat q = Mat::zeros(n, 2, CV_32F);
+                                      q.at<float>(0, 0) = i;
+                                      q.at<float>(0, 1) = j;
+                                      int count = 0,count1 = 0;
+                                      //estimate different types of particles
+                                      while (stop1 == 0)
+                                      {
+                                             r2 = q.at<float>(count1, 0);//get x axis
+                                             c2 = q.at<float>(count1, 1);//get y axis
+                                             for (int x = 0; x < 3; x++)
+                                             {
+                                                     for (int y = 0; y < 3; y++)
+                                                     {
+                                                            if ((r2 + x - 1) >= 0 && (r2 + x - 1) < srcImg.rows && (c2 + y - 1) >= 0 && (c2 + y - 1) < srcImg.cols)
+                                                            {
+                                                                    if (srcImg.at<uchar>(r2 + x - 1, c2 + y - 1) == 255 && CountSpace.at<Vec3b>(r2 + x - 1, c2 + y - 1)[c] == 0)
+                                                                    {
+                                                                            CountSpace.at<Vec3b>(r2 + x - 1, c2 + y - 1)[c] = 1;//compare and dilation
+                                                                            q.at<float>(list1, 0) = r2 + x - 1;
+                                                                            q.at<float>(list1, 1) = c2 + y - 1;
+                                                                           list1++;
+                                                                    }
+                                                            }
+                                                     }
+                                             }
+                                             count1++;
+                                             if (count1 == list1)
+                                                     stop1 = 1;
+                                      }
+                                      if (count1 < 400)
+                                      {
+                                             r = ra;
+                                      }
+                                      else if (count1 < 10000)
+                                      {
+                                             r = rb;
+                                      }
+                                      else
+                                      {
+                                             r = rc;
+                                      }
+                                      while (stop == 0)
+                                      {
+                                             r1 = q.at<float>(count, 0);//get x axis
+                                             c1 = q.at<float>(count, 1);//get y axis
+                                             for (int x = 0; x < 3; x++)
+                                             {
+                                                     for (int y = 0; y < 3; y++)
+                                                     {
+                                                            if ((r1 + x - 1) >= 0 && (r1 + x - 1) < srcImg.rows && (c1 + y - 1) >= 0 && (c1 + y - 1) < srcImg.cols)
+                                                            {
+                                                                    if (srcImg.at<uchar>(r1 + x - 1, c1 + y - 1) == 255 && dstImg.at<Vec3b>(r1 + x - 1, c1 + y - 1)[c] == 0)
+                                                                    {
+                                                                            dstImg.at<Vec3b>(r1 + x - 1, c1 + y - 1)[c] = r;//compare and dilation
+                                                                            q.at<float>(list, 0) = r1 + x - 1;
+                                                                            q.at<float>(list, 1) = c1 + y - 1;
+                                                                           list++;
+                                                                    }
+                                                            }
+                                                     }
+                                             }
+                                             count++;
+                                             if (count == list)
+                                                     stop = 1;
+                                      }
+                              }
+                       }
+               }
+        }
+        return dstImg;
+}

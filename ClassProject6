@@ -1,4 +1,12 @@
- #include "FunctionName.h"
+/*Class Project 6
+1. Define two structural elements, perform binary dilation, erosion, opening, and
+closing operations on noisy_fingerprint.pgm and noise_rectangle.pgm
+2. Extract the boundaries of licoln.pgm and U.pgm
+3. Extract the connected components from connected.pgm
+4. Problem 9.36, write a problem to separate the three required sets from
+bubbles_on_black_background.pgm*/
+
+#include "FunctionName.h"
 Mat BinaDila(Mat srcImg, Mat elem, Mat &dstImg)
 {
         //srcImg: input image

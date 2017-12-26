@@ -1,0 +1,471 @@
+/*
+1. Use three different PGM images to perform the following options:
+• log transformation and plot the transfer function
+• γ correction with 􀟛 􀵌 0.25, 0.5, 1, 1.5, 2
+2. Generate a 256x256 8-bit image with gray levels varying (using a
+gaussian distribution) in the range [200, 220], insert a 100x100
+square in the range [80, 100]. The image represents an object in a
+light gray background. Use its histogram information to design an
+algorithm to remove the background
+3. Write a program to perform spatial filtering of an image. You can
+input the size of the spatial mask and the weight coefficients. Test
+your program using a blurring filter
+4. Add random noise to an image, implement 3x3, 5x5 median filters to
+the noise added images. Also plot the image histograms before and
+after the filters
+5. Use the unsharp masking technique to enhance three images
+6. Implement IHPF, BHPF, GHPF on three images
+*/
+
+#include "FunctionName.h"
+Mat LogTrans(Mat srcImg, Mat &dstImg, float c)
+{
+        //srcImg: input image
+        //c: constant
+        //dstImg: output image with log transformation
+        cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+        srcImg.convertTo(srcImg, CV_32F);
+        int M = srcImg.cols;
+        int N = srcImg.rows;
+        for (int v = 0; v < N ; v++)
+        {
+            float *pd = srcImg.ptr<float>(v);//pixel pointer
+            for (int u = 0; u < M ; u++)
+            {
+                srcImg.at<float>(v,u) = c*log(srcImg.at<float>(v, u) + 1.0);
+            }
+        }
+        normalize(srcImg, srcImg, 0.0, 256.0, CV_MINMAX);//normalize
+        srcImg.copyTo(dstImg);
+        dstImg.convertTo(dstImg, CV_8U);
+        return dstImg;
+}
+Mat GammaCorre(Mat srcImg, Mat &dstImg, float c, float gamma)
+{
+    //srcImg: input image
+    //c: constant
+    //dstImg: output image with gamma correction
+    cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+    srcImg.convertTo(srcImg, CV_32F);
+    int M = srcImg.cols;
+    int N = srcImg.rows;
+    for (int v = 0; v < N ; v++)
+    {
+        for (int u = 0; u < M ; u++)
+        {
+            srcImg.at<float>(v, u) = c*pow(srcImg.at<float>(v, u), gamma);
+        }
+    }
+    normalize(srcImg, srcImg, 0.0, 256.0, CV_MINMAX);//normalize
+    srcImg.copyTo(dstImg);
+    dstImg.convertTo(dstImg, CV_8U);
+    return dstImg;
+}
+int Otsu(Mat image)
+{
+    //im: input image
+    //output: threshold with Otsu
+    int M = image.rows;
+    int N = image.cols;
+    double w0;//ratio of number pixel < T
+    double w1;//ratio of number pixel > T
+    int g[256];//storage all the g with different T
+    int Tmax = 0;//calculation Tmax
+    for (int T = 0; T < 255; T++)//ergodic threshold
+    {
+        double N0 = 0.0;//number of pixel < T
+        double N1 = 0.0;//number of pixel > T
+        int u0 = 0.0;//average of number pixel < T
+        int u1 = 0.0;//average of number pixel > T
+        for (int y = 0; y < M; y++)//ergodic image, calculate N0 and N1
+        {
+            for (int x = 0; x < N; x++)
+            {
+                if (image.at<uchar>(y, x) < T)
+                {
+                    N0 = N0 + 1.0;
+                    u0 = u0 + image.at<uchar>(y, x);
+                }
+                else
+                {
+                    N1 = N1 + 1.0;
+                    u1 = u1 + image.at<uchar>(y, x);
+                }
+            }
+        }
+        w0 = N0 / (M*N);//calculation w0
+        w1 = N1 / (M*N);//calculation w1
+        u0 = u0 / N0;//calculation u0
+        u1 = u1 / N1;//calculation u1
+        g[T] = w0*w1*(u0 - u1)*(u0 - u1) + 0.5;//calculation g[T]
+        if (g[T] > g[Tmax])//get Tmax  
+        {
+            Tmax = T;
+        }
+    }
+    return Tmax;
+}
+void GaussRand()
+{
+    //build image
+    //dstImg: build gaussrand image
+    //c0,c1:range of gaussrand
+    srand((unsigned)time(NULL));
+    //1 get normal distribution
+    Mat guasImg1(256, 256, CV_32FC1, Scalar(0));
+    Mat guasImg2(100, 100, CV_32FC1, Scalar(0));
+    for (int x = 0; x < 256; x++)
+    {
+            for (int y = 0; y < 256; y++)
+            {
+                float r = rand() % 7 + -3;//build random number from -3 - 3
+                guasImg1.at<float>(x,y) = (1 / sqrt(6.28))*exp(-r*r / 2);//get standard normal distribution with random number
+            }
+    }
+    for (int x = 0; x < 100; x++)
+    {
+        for (int y = 0; y < 100; y++)
+        {
+            float r = rand() % 7 + -3;//build random number from -3 - 3
+            guasImg2.at<float>(x,y) = (1 / sqrt(6.28))*exp(-r*r / 2);//get standard normal distribution with random number
+        }
+    }
+    //2 normalize
+    normalize(guasImg1, guasImg1, 200.0, 220.0, CV_MINMAX);//normalize from 200 - 220
+    normalize(guasImg2, guasImg2, 80.0, 100.0, CV_MINMAX);//normalize from 80 - 100
+    //3 assignment
+    for (int x = 75; x < 175; x++)
+    {
+        float *p1 = guasImg1.ptr<float>(x);
+        float *p2 = guasImg2.ptr<float>(x-75);
+        for (int y = 75; y < 175; y++)
+        {
+            p1[y] = p2[y-75];//get standard normal distribution with random number
+        }
+    }
+    guasImg1.convertTo(guasImg1, CV_8U);
+    imshow("256x256 8-bit image with 100*100 image insert", guasImg1);
+    //4 histogram algorithm (Otsu's method)and remove the background
+    Mat ThreImg;
+    guasImg1.copyTo(ThreImg);
+    int T = Otsu(guasImg1);//get threshold value
+    cout << T;
+    threshold(ThreImg, ThreImg, T, 255, THRESH_TOZERO_INV);//threshold with THRESH_TOZERO_INV
+    imshow("remove the background image", ThreImg);
+}
+float Correlation(Mat weight, Mat srcImg, int x,int y)
+{
+    //weight: any odd suqare
+    //srcImg: input image
+    //dstImg: output image with correlation of weight and srcImg and divide sum of weight
+    int Mw = weight.rows;
+    int Nw = Mw;
+    int a = floor(Nw / 2);
+    int b = a;
+    float sum = 0.0;
+    float sum0 = 0.0;
+    for (int t = -b; t < b + 1; t++)
+    {
+        for (int s = -a; s < a + 1; s++)
+        {
+            sum = sum + weight.at<float>(t+b,s + a) * srcImg.at<float>(y+t,x + s);
+            sum0 = sum0 + weight.at<float>(t + b, s + a);
+        }
+    }
+    sum = sum / sum0;
+    return sum;
+}
+Mat SpatialF(Mat srcImg,Mat &dstImg, Mat weight)
+{    
+    //weight: any odd suqare
+    //srcImg: input image
+    //dstImg: output image with correlation of weight and srcImg
+    //1 type of image
+    cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+    srcImg.convertTo(srcImg, CV_32F);
+    int Mw = weight.rows;
+    int Nw = Mw;
+    int a = floor(Nw / 2);
+    int b = a;
+    //2 using spatial filter and assignment
+    for (int x = a; x < srcImg.cols - a ; x++)
+    {
+        for (int y = b; y < srcImg.rows - b; y++)
+        {
+            srcImg.at<float>(x,y) = Correlation(weight, srcImg, y, x);
+        }
+    }
+    srcImg.copyTo(dstImg);
+    dstImg.convertTo(dstImg, CV_8U);
+    return dstImg;
+}
+Mat unsharpMT(Mat srcImg,Mat &sPimage, Mat &dstImg,Mat &mask, Mat weight, float k)
+{
+    //srcImg: input image
+    //sPimage: filtered image
+    //dstImg: output image with mask
+    //mask: mask of image
+    //weight: gaussian or other blur core
+    //k: dstImg mask ratio
+    filter2D(srcImg, dstImg, srcImg.depth(), weight);
+    dstImg.copyTo(sPimage);
+    imshow("dstImg", dstImg);
+    imshow("srcImg", srcImg);
+    mask = Mat::zeros(srcImg.cols, srcImg.rows, srcImg.type());
+    mask = srcImg - dstImg;
+    dstImg = srcImg + k * mask;
+    return dstImg,mask, sPimage;
+}
+void salt(cv::Mat image, int n) {
+    //image:input image and adding with salt noice
+    int i, j;
+    for (int k = 0; k<n / 2; k++) {
+        // rand() is the random number generator  
+        i = std::rand() % image.cols; //get remainder of rand to find the place of noise
+        j = std::rand() % image.rows;
+        if (image.type() == CV_8UC1) { // gray-level image  
+            image.at<uchar>(j, i) = 255;
+        }
+        else if (image.type() == CV_8UC3) { // color image  
+            image.at<cv::Vec3b>(j, i)[0] = 255; //cv::Vec3b three channels
+            image.at<cv::Vec3b>(j, i)[1] = 255; //B:0，G:1，R:2  
+            image.at<cv::Vec3b>(j, i)[2] = 255;
+        }
+    }
+}
+void pepper(cv::Mat image, int n) {
+    //image:input image and adding with pepper noice
+    int i, j;
+    for (int k = 0; k<n; k++) {
+        // rand() is the random number generator  
+        i = std::rand() % image.cols; //
+        j = std::rand() % image.rows;
+        if (image.type() == CV_8UC1) { // gray-level image  
+            image.at<uchar>(j, i) = 0;
+        }
+        else if (image.type() == CV_8UC3) { // color image  
+            image.at<cv::Vec3b>(j, i)[0] = 0; //cv::Vec3b three channels
+            image.at<cv::Vec3b>(j, i)[1] = 0; //B:0，G:1，R:2  
+            image.at<cv::Vec3b>(j, i)[2] = 0;
+        }
+    }
+}
+Mat Hist(Mat srcImg, Mat &dstImg)
+{
+    /*calculate histogram*/
+    int histogram[256];//build histogram
+    memset(histogram, 0, 256 * sizeof(int));//initialize with 0
+    int pixelCount = srcImg.cols*srcImg.rows;
+    uchar *imageData = srcImg.data;//use pointer .Data
+    int maxhis = 0;
+    for (int i = 0; i <= pixelCount - 1; ++i)//assignment
+    {
+        int gray = imageData[i];
+        histogram[gray]++;
+    }
+    for (int j = 1; j < 256; j++)
+    {
+        maxhis = histogram[0];
+        if (histogram[j] > maxhis)
+        {
+            maxhis = histogram[j];
+        }
+    }
+    dstImg = Mat::zeros(maxhis, 256, CV_8U);
+    for (int x = 0; x < 256; x++)
+    {
+        for (int y = 0; y < maxhis; y++)
+        {
+            int number = maxhis - histogram[x];
+            if (y <= number)
+            {
+                dstImg.at<uchar>(y, x) = 0;
+            }
+            else
+            {
+                dstImg.at<uchar>(y, x) = 255;
+            }
+        }
+    }
+    return dstImg;
+}
+Mat MoveToCenter(Mat srcImg, Mat &dstImg)
+{
+    //srcImg: input image
+    //dstImg: output image with move to center
+    //assignment
+    for (int y = 0; y < srcImg.rows; y++) {
+        float *pdst = dstImg.ptr<float>(y);
+        float *psrc = srcImg.ptr<float>(y);
+        for (int x = 0; x < srcImg.cols; x++) {
+            pdst[x] = pow(-1.0, x + y + 2)*psrc[x];
+        }
+    }
+    return dstImg;
+}
+Mat DFT(Mat srcImg, Mat &dstImgReal, Mat &dstImgImgi)
+{
+    //srcImg: input image
+    //dstImg: output image
+    //DFT of input image and output image with real part and imaginary part
+    //input image and convert to gray float image
+    Mat padded;                 //prepare padded matrix
+    float N = getOptimalDFTSize(srcImg.rows);//get optimal dft size
+    float M = getOptimalDFTSize(srcImg.cols);
+    //input image padded
+    copyMakeBorder(srcImg, padded, 0, N - srcImg.rows, 0, M - srcImg.cols, BORDER_CONSTANT, Scalar::all(0));
+    // prepare planes[2] where planes[0] is real part and planes[1] is imaginary part
+    MoveToCenter(padded, padded);// move padded to center
+    Mat planes[] = { Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F) };
+    Mat complexI;
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    dft(complexI, complexI);        //dft
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    dstImgReal = planes[0];
+    dstImgImgi = planes[1];
+    return dstImgImgi, dstImgReal;
+}
+Mat IDFT(Mat srcImgReal, Mat srcImgImgi, Mat &dstImg)
+{
+    //srcImgReal:real part input image
+    //srcImgImgi:imginary part input image
+    //dstImg: output image
+    //IDFT of input image
+    //input image and convert to gray float image
+    Mat planes[] = { srcImgReal, srcImgImgi };
+    Mat complexI;
+    merge(planes, 2, complexI);     //planes[2] into complexI with two channels
+    idft(complexI, complexI);
+    split(complexI, planes);        //planes[0] = Re(DFT(I),planes[1] = Im(DFT(I))
+    dstImg = planes[0]; //ger real part of idft image as dstimage
+    MoveToCenter(dstImg, dstImg);// move dstImg to center
+    return dstImg;
+}
+Mat IDHPFF(Mat &dstImg, float D0, int M, int N)
+{
+    //D0: cutoff frequency of ideal highpass filter function(IDHPFF)
+    //M,N: cols and rows of dstImg
+    //dstImg: output ideal highpass filter function
+    //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = pow(float(u) - float((M - 1.0) / 2.0), 2.0) + pow(float(v) - float((N - 1.0) / 2.0), 2.0);//sqrt of distance from image center
+            if (D >= D0)
+            {
+                p[u] = 1;//assignment
+            }
+        }
+    }
+    return dstImg;
+}
+Mat IDHPF(Mat srcImg, Mat &dstImg, float D0)
+{
+    //srcImg: input image
+    //D0: cutoff frequency
+    //dstImg: output image with ideal highpass filter and binalization
+    //dstImgOrigin: output image with ideal highpass filter
+    //1 DFT of input image and get real and imag part in frequency
+    cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+    srcImg.convertTo(srcImg, CV_32F);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare IDHPFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));//prepare H(u,v)
+    IDHPFF(H, D0, srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg
+    IDFT(dstImgReal, dstImgImgi, dstImg);
+    //5 normalize and binalization
+    normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImg, CV_8U);
+    return dstImg;
+}
+Mat BHPFF(Mat &dstImg, float D0, int n, int M, int N)
+{
+    //D0: cutoff frequency of ideal highpass filter function(IDHPFF)
+    //M,N: cols and rows of dstImg
+    //dstImg: output butterworth highpass filter function
+    //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = pow(float(u) - float((M - 1.0) / 2.0), 2.0) + pow(float(v) - float((N - 1.0) / 2.0), 2.0);//sqrt of distance from image center
+            p[u] = 1 / (1 + pow(D0 / D, 2 * n));
+        }
+    }
+    return dstImg;
+}
+Mat BHPF(Mat srcImg, Mat &dstImg, float D0, int n)
+{
+    //srcImg: input image
+    //D0: cutoff frequency
+    //dstImg: output image with Gaussian highpass filter and binalization
+    //dstImgOrigin: output image with butterworth highpass filter
+    //1 DFT of input image and get real and imag part in frequency
+    cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+    srcImg.convertTo(srcImg, CV_32F);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare BHPFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));//prepare H(u,v)
+    BHPFF(H, D0, n, srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg
+    IDFT(dstImgReal, dstImgImgi, dstImg);
+    //5 normalize and binalization
+    normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImg, CV_8U);
+    return dstImg;
+}
+Mat GHPFF(Mat &dstImg, float D0, int M, int N)
+{
+    //D0: cutoff frequency of gaussian highpass filter function (GHPFF)
+    //M,N: cols and rows of dstImg
+    //dstImg: output gaussian highpass filter function
+    //assignment
+    for (int v = 0; v < N - 1; v++)
+    {
+        float *p = dstImg.ptr<float>(v);//pixel pointer
+        for (int u = 0; u < M - 1; u++)
+        {
+            float D = pow(float(u) - float((M - 1.0) / 2.0), 2.0) + pow(float(v) - float((N - 1.0) / 2.0), 2.0);//sqrt of distance from image center
+            p[u] = 1.0 - exp(-D / (2 * pow(D0, 2)));//assignment
+        }
+    }
+    return dstImg;
+}
+Mat GHPF(Mat srcImg, Mat &dstImg, float D0)
+{    //srcImg: input image
+    //D0: cutoff frequency
+    //dstImg: output image with Gaussian highpass filter and binalization
+    //dstImgOrigin: output image with Gaussian highpass filter
+    //1 DFT of input image and get real and imag part in frequency
+    cvtColor(srcImg, srcImg, CV_BGR2GRAY);
+    srcImg.convertTo(srcImg, CV_32F);
+    Mat dstImgReal(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    Mat dstImgImgi(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));
+    DFT(srcImg, dstImgReal, dstImgImgi);
+    //2 prepare GHPFF
+    Mat H(srcImg.cols, srcImg.rows, CV_32FC1, Scalar(0));//prepare H(u,v)
+    GHPFF(H, D0, srcImg.cols, srcImg.rows);
+    //3 filter
+    multiply(dstImgReal, H, dstImgReal);
+    multiply(dstImgImgi, H, dstImgImgi);
+    //4 IDFT of dstImg
+    IDFT(dstImgReal, dstImgImgi, dstImg);
+    //5 normalize and binalization
+    normalize(dstImg, dstImg, 0.0, 255.0, CV_MINMAX);//normalize
+    dstImg.convertTo(dstImg, CV_8U);
+    return dstImg;
+}

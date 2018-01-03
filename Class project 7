@@ -1,0 +1,563 @@
+ /*
+ Class Project 7
+1. Use Roberts, Prewitt, Sobel gradient operators to obtain gradient images, then
+threshold the images to compare the results among different operators. The
+images are headCT_Vandy.pgm, building_original.pgm, noisy_fingerprint.pgm
+2. Implement Canny edge detection and LoG detection algorithms on
+headCT_Vandy.pgm and noisy_fingerprint.pgm
+3. Use global thresholding to perform segmentation separately on
+polymersomes.pgm and noisy_fingerprint.pgm
+*/
+ 
+ 
+ #include "FunctionName.h"
+
+
+Mat RobGrad(Mat srcImg,Mat &dstImg)
+{
+
+	//srcImg: input image
+	//dstImg: get edge image from Robert gradient 
+
+	dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+
+	int Gx = 0, Gy = 0;
+	for (int y = 0; y < srcImg.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < srcImg.cols; x++)
+		{
+			if (x>0 && y>0 && x < srcImg.cols - 1 && y < srcImg.rows - 1)
+			{
+
+
+//					Gx = -srcImg.at<uchar>(y - 1, x - 1) - 2 * srcImg.at<uchar>(y, x - 1) - srcImg.at<uchar>(y + 1, x - 1)
+//						+ srcImg.at<uchar>(y - 1, x + 1) + 2 * srcImg.at<uchar>(y, x + 1) + srcImg.at<uchar>(y + 1, x + 1);
+
+//					Gy = srcImg.at<uchar>(y - 1, x - 1) + 2 * srcImg.at<uchar>(y - 1, x) + srcImg.at<uchar>(y - 1, x + 1)
+//						- srcImg.at<uchar>(y + 1, x - 1) - 2 * srcImg.at<uchar>(y + 1, x) - srcImg.at<uchar>(y + 1, x + 1);
+				Gx = srcImg.at<uchar>(y + 1, x + 1) - srcImg.at<uchar>(y, x);
+				Gy = srcImg.at<uchar>(y + 1, x) - srcImg.at<uchar>(y, x + 1);
+				dstImg.at<uchar>(y, x) = pow(Gx*Gx + Gy*Gy, 0.5);
+			}
+
+		}
+	}
+	threshold(dstImg, dstImg, 0, 255, THRESH_BINARY | THRESH_OTSU);
+
+	return dstImg;
+
+
+}
+
+Mat SobelGrad(Mat srcImg, Mat &dstImg)
+{
+
+	//srcImg: input image
+	//dstImg: get edge image from Robert gradient 
+
+	dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+
+	int Gx = 0, Gy = 0;
+	for (int y = 0; y < srcImg.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < srcImg.cols; x++)
+		{
+			if (x>0 && y>0 && x < srcImg.cols - 1 && y < srcImg.rows - 1)
+			{
+
+
+			Gx = -srcImg.at<uchar>(y - 1, x - 1) - 2 * srcImg.at<uchar>(y, x - 1) - srcImg.at<uchar>(y + 1, x - 1) + srcImg.at<uchar>(y - 1, x + 1) + 2 * srcImg.at<uchar>(y, x + 1) + srcImg.at<uchar>(y + 1, x + 1);
+
+			Gy = srcImg.at<uchar>(y - 1, x - 1) + 2 * srcImg.at<uchar>(y - 1, x) + srcImg.at<uchar>(y - 1, x + 1) - srcImg.at<uchar>(y + 1, x - 1) - 2 * srcImg.at<uchar>(y + 1, x) - srcImg.at<uchar>(y + 1, x + 1);
+
+			dstImg.at<uchar>(y, x) = abs(Gx)+abs(Gy);
+			}
+
+		}
+	}
+		threshold(dstImg, dstImg, 0, 255, THRESH_BINARY | THRESH_OTSU);
+
+	return dstImg;
+
+
+}	
+
+Mat SobelNon(Mat srcImg,Mat &M,Mat &alpha, Mat&Nms)
+{
+	//srcImg: input image
+	//Gx,Gy: Gx Gy after sobel gradient
+	//M, alpha: M and alpha with Gx, Gy and nonmaxima suppression
+	alpha = Mat::zeros(srcImg.rows, srcImg.cols, CV_32F);
+	Nms = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+	M = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+
+
+	int Gx = 0, Gy = 0;
+	for (int y = 0; y < srcImg.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < srcImg.cols; x++)
+		{
+			if (x>0 && y>0 && x < srcImg.cols - 1 && y < srcImg.rows - 1)
+			{
+
+
+				Gx = -srcImg.at<uchar>(y - 1, x - 1) - 2 * srcImg.at<uchar>(y, x - 1) - srcImg.at<uchar>(y + 1, x - 1) + srcImg.at<uchar>(y - 1, x + 1) + 2 * srcImg.at<uchar>(y, x + 1) + srcImg.at<uchar>(y + 1, x + 1);
+
+				Gy = srcImg.at<uchar>(y - 1, x - 1) + 2 * srcImg.at<uchar>(y - 1, x) + srcImg.at<uchar>(y - 1, x + 1) - srcImg.at<uchar>(y + 1, x - 1) - 2 * srcImg.at<uchar>(y + 1, x) - srcImg.at<uchar>(y + 1, x + 1);
+				alpha.at<float>(y, x) = atan2(Gy, Gx) * 180 / pi;
+
+				M.at<uchar>(y, x) = pow(Gx*Gx + Gy*Gy, 0.5);
+			}
+
+		}
+	}
+
+
+	for (int y = 0; y < srcImg.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < srcImg.cols; x++)
+		{
+			if (x>0 && y>0 && x < srcImg.cols - 1 && y < srcImg.rows - 1)
+			{
+
+				//alpha classification
+			if (alpha.at<float>(y, x) >= -22.5 && alpha.at<float>(y, x) < 22.5 || alpha.at<float>(y, x) >= -180 && alpha.at<float>(y, x) <= -157.5 || alpha.at<float>(y, x) <= 180 && alpha.at<float>(y, x) > 157.5)
+				{
+					alpha.at<float>(y, x) = 90;
+				}
+				else if (alpha.at<float>(y, x) >= 22.5 && alpha.at<float>(y, x) < 67.5 || alpha.at<float>(y, x) <= -112.5 && alpha.at<float>(y, x) > -157.5)
+				{
+					alpha.at<float>(y, x) = -45;
+				}
+				else if (alpha.at<float>(y, x) >= 67.5 && alpha.at<float>(y, x) < 112.5 || alpha.at<float>(y, x) <= -67.5 && alpha.at<float>(y, x) > -112.5)
+				{
+					alpha.at<float>(y, x) = 0;
+				}
+				else if (alpha.at<float>(y, x) >= 112.5 && alpha.at<float>(y, x) < 157.5 || alpha.at<float>(y, x) <= -22.5 && alpha.at<float>(y, x) > -67.5)
+				{
+					alpha.at<float>(y, x) = 45;
+				}
+
+				if (alpha.at<float>(y, x) == 90 && M.at<uchar>(y, x) > M.at<uchar>(y, x + 1)&& M.at<uchar>(y, x)> M.at<uchar>(y, x - 1))
+				{
+					Nms.at<uchar>(y, x) = M.at<uchar>(y, x);
+				}
+				else if (alpha.at<float>(y, x) == -45 && M.at<uchar>(y, x) > M.at<uchar>(y + 1, x - 1) && M.at<uchar>(y, x)> M.at<uchar>(y - 1, x + 1))
+				{
+					Nms.at<uchar>(y, x) = M.at<uchar>(y, x);
+				}	
+				else if (alpha.at<float>(y, x) == 0 && M.at<uchar>(y, x) > M.at<uchar>(y + 1, x) && M.at<uchar>(y, x)> M.at<uchar>(y - 1, x))
+				{
+					Nms.at<uchar>(y, x) = M.at<uchar>(y, x);
+				}
+				else if (alpha.at<float>(y, x) == 45 && M.at<uchar>(y, x) > M.at<uchar>(y + 1, x + 1) && M.at<uchar>(y, x)> M.at<uchar>(y - 1, x - 1))
+				{
+					Nms.at<uchar>(y, x) = M.at<uchar>(y, x);
+				}
+			}
+		}
+	}
+
+	return M, alpha,Nms;
+
+}
+
+Mat doubleThres(Mat srcImg, Mat &dstImg)
+{
+	//srcImg: input image
+	//dstImg: output image with double thresholding
+	dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+
+	int TL = 60; //lower threshold
+	int TH = 181; //higher threshold
+	for (int i = 0; i < srcImg.rows; i++)
+	{
+		for (int j = 0; j < srcImg.cols; j++)
+		{
+			if (i > 0 && j > 0 && j < srcImg.cols - 1 && i < srcImg.rows - 1)
+			{
+				if (srcImg.at<uchar>(i, j) < TL)
+				{
+					dstImg.at<uchar>(i, j) = 0;//can cuted
+				}
+				else if (srcImg.at<uchar>(i, j) > TH)
+				{
+					dstImg.at<uchar>(i, j) = 255;
+				}
+				else if (srcImg.at<uchar>(i + 1, j - 1) < TH || srcImg.at<uchar>(i + 1, j) < TH || srcImg.at<uchar>(i + 1, j + 1) < TH || srcImg.at<uchar>(i, j - 1) < TH || srcImg.at<uchar>(i, j + 1) < TH || srcImg.at<uchar>(i - 1, j - 1) < TH || srcImg.at<uchar>(i - 1, j) < TH || srcImg.at<uchar>(i - 1, j + 1) < TH)
+				{
+					dstImg.at<uchar>(i, j) = 255;
+				}
+			}
+		}
+	}
+	return dstImg;
+	
+}
+
+Mat GlobalThres(Mat srcImg, Mat &dstImg)
+{
+	//srcImg: input image
+	//dstImg: output image with global thresholding
+	uchar *srcData = srcImg.data;//use pointer .Data 
+	int max = 0, min = 0, T = 0,T0 = 6;
+	for (int i = 0; i <= srcImg.cols*srcImg.rows - 1; ++i)//assignment
+	{
+		if (srcData[i] > max)
+		{
+			max = srcData[i];
+		}
+		if (srcData[i] < min)
+		{
+			min = srcData[i];
+		}
+	}
+	T = (min + max) / 2;
+
+	while (T0 > 1)
+	{
+		int u1 = 0, u2 = 0, n1 = 0, n2 = 0;
+		for (int i = 0; i < srcImg.rows; i++)
+		{
+			for (int j = 0; j < srcImg.cols; j++)
+			{
+				if (srcImg.at<uchar>(i, j) < T)
+				{
+					u1 = u1 + srcImg.at<uchar>(i, j);
+					n1 = n1 + 1;
+				}
+				else
+				{
+					u2 = u2 + srcImg.at<uchar>(i, j);
+					n2 = n2 + 1;
+				}
+			}
+		}
+		T0 = (u1 / n1 + u2 / n2) / 2 - T;
+		T = (u1 / n1 + u2 / n2) / 2;
+	}
+	threshold(srcImg, dstImg, T, 255, THRESH_BINARY );
+	return dstImg;
+}
+
+Mat PreGrad(Mat srcImg, Mat &dstImg)
+{
+
+	//srcImg: input image
+	//dstImg: get edge image from Robert gradient 
+
+	dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+
+	int Gx = 0, Gy = 0;
+	for (int y = 0; y < srcImg.rows; y++)//ergodic translation matrix
+	{
+		for (int x = 0; x < srcImg.cols; x++)
+		{
+			if (x>0 && y>0 && x < srcImg.cols - 1 && y < srcImg.rows - 1)
+			{
+
+
+				Gx = -srcImg.at<uchar>(y - 1, x - 1) - srcImg.at<uchar>(y - 1, x) - srcImg.at<uchar>(y - 1, x + 1) + srcImg.at<uchar>(y + 1, x - 1) + srcImg.at<uchar>(y + 1, x) + srcImg.at<uchar>(y + 1, x + 1);
+
+				Gy = -srcImg.at<uchar>(y - 1, x - 1) - srcImg.at<uchar>(y, x - 1) - srcImg.at<uchar>(y + 1, x - 1) + srcImg.at<uchar>(y - 1, x + 1) + srcImg.at<uchar>(y, x + 1) + srcImg.at<uchar>(y + 1, x + 1);
+
+				dstImg.at<uchar>(y, x) = pow(Gx*Gx + Gy*Gy, 0.5);
+			}
+
+		}
+	}
+	threshold(dstImg, dstImg, 0, 255, THRESH_BINARY | THRESH_OTSU);
+
+	return dstImg;
+
+
+}
+
+Mat BinaDila(Mat srcImg, Mat elem, Mat &dstImg)
+{
+	//srcImg: input image
+	//dstImg: output image with binary dilation
+	dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+	int tx, ty;
+	tx = (elem.rows - 1) / 2;
+	ty = (elem.cols - 1) / 2;
+	for (int i = 0; i < srcImg.rows; i++)//assignment
+	{
+		for (int j = 0; j < srcImg.cols; j++)
+		{
+
+			if (srcImg.at<uchar>(i, j) == 255)
+			{
+
+				for (int x = 0; x < elem.rows; x++)
+				{
+					for (int y = 0; y < elem.cols; y++)
+					{
+						if ((i + x - tx)>=0 && (i + x - tx)<srcImg.rows && (j + y - ty)>=0 && (j + y - ty) < srcImg.cols)
+						dstImg.at<uchar>(i + x -tx , j + y - ty) = elem.at<uchar>(x , y);//dilation
+					}
+				}
+			}
+
+		}
+	}
+
+	return dstImg;
+}
+
+Mat BinaEros(Mat srcImg, Mat elem, Mat &dstImg)
+{
+	//srcImg: input image
+	//dstImg: output image with binary erosion
+	dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
+	int tx, ty;
+	tx = (elem.rows - 1) / 2;
+	ty = (elem.cols - 1) / 2;
+	for (int i = 0; i < srcImg.rows; i++)//assignment
+	{
+		for (int j = 0; j < srcImg.cols; j++)
+		{
+			int sum = 0;
+			for (int x = 0; x < elem.rows; x++)
+			{
+				for (int y = 0; y < elem.cols; y++)
+				{
+					if ((i + x - tx) >= 0 && (i + x - tx) < srcImg.rows && (j + y - ty) >= 0 && (j + y - ty) < srcImg.cols)
+					{
+						if (srcImg.at<uchar>(i + x - tx, j + y - ty) == 255)
+						{
+							sum = sum + 1;
+						}
+					}
+				}
+			}
+			if (sum == elem.rows*elem.cols)
+			{
+				dstImg.at<uchar>(i,j) = 255;//dilation
+			}
+		}
+
+	}
+
+	return dstImg;
+}
+
+Mat BinaOpen(Mat srcImg, Mat elem, Mat &dstImg)
+{	
+	//srcImg: input image
+	//dstImg: output image with binary opening
+	Mat TranImg;
+	BinaEros(srcImg, elem, TranImg);
+	BinaDila(TranImg, elem, dstImg);
+	return dstImg;
+}
+
+Mat BinaClos(Mat srcImg, Mat elem, Mat &dstImg)
+{	
+	//srcImg: input image
+	//dstImg: output image with binary closing
+	Mat TranImg;
+	BinaDila(srcImg, elem, TranImg);
+	BinaEros(TranImg, elem, dstImg);
+	return dstImg;
+}
+
+Mat BinaBoEx(Mat srcImg, Mat elem, Mat &dstImg)
+{
+	//srcImg: input image
+	//dstImg: output image with binary closing
+
+	BinaEros(srcImg, elem, dstImg);
+	dstImg = srcImg - dstImg;
+	return dstImg;
+}
+
+Mat BinaCoCo(Mat srcImg, Mat &dstImg)
+{
+	//srcImg: input image
+	//dstImg: output image with binary closing
+	dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8UC3);
+
+	for (int c = 0; c < 3; c++)//three channels to set more colors to output image
+	{
+		for (int i = 0; i < srcImg.rows; i++)//assignment
+		{
+			for (int j = 0; j <srcImg.cols; j++)
+			{
+				//dstImg.at<Vec3b>(i, j)[c] = 255;
+
+				if (srcImg.at<uchar>(i, j) == 255&& dstImg.at<Vec3b>(i,j)[c] == 0)
+				{
+					int r1, c1;
+					int r = (rand() % (255));
+					int list = 1;//loop of iteration
+					int stop = 0;//stop condition	
+					int n = srcImg.rows*srcImg.cols;
+					Mat q = Mat::zeros(n, 2, CV_32F);
+					q.at<float>(0, 0) = i;
+					q.at<float>(0, 1) = j;
+					int count = 0;
+
+					while (stop == 0)
+					{	
+						
+						r1 = q.at<float>(count, 0);//get x axis
+						c1 = q.at<float>(count, 1);//get y axis
+
+						for (int x = 0; x < 3; x++)
+						{
+							
+							for (int y = 0; y < 3; y++)
+							{
+								
+								if ((r1 + x - 1) >= 0 && (r1 + x - 1) < srcImg.rows && (c1 + y - 1) >= 0 && (c1 + y - 1) < srcImg.cols)
+								{
+
+									if (srcImg.at<uchar>(r1 + x - 1, c1 + y - 1) == 255 && dstImg.at<Vec3b>(r1 + x - 1, c1 + y - 1)[c] == 0)
+									{
+
+										dstImg.at<Vec3b>(r1 + x - 1, c1 + y - 1)[c] = r;//compare and dilation
+										q.at<float>(list, 0) = r1 + x - 1;
+										q.at<float>(list, 1) = c1 + y - 1;
+										list++;
+										
+									}
+								}
+							}
+						}
+						count++;
+						if (count == list)
+							stop = 1;
+					}
+
+				}
+			}
+
+		}
+
+	}	
+
+	return dstImg;
+}
+
+
+Mat BinaSePe(Mat srcImg, Mat &dstImg)
+{
+	//srcImg: input image
+	//dstImg: output image with binary closing
+	dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8UC3);
+	Mat CountSpace = Mat::zeros(srcImg.rows, srcImg.cols, CV_8UC3);
+
+	for (int c = 0; c < 3; c++)//three channels to set more colors to output image
+	{
+		for (int i = 0; i < srcImg.rows; i++)//assignment
+		{
+			for (int j = 0; j <srcImg.cols; j++)
+			{
+				//dstImg.at<Vec3b>(i, j)[c] = 255;
+
+				if (srcImg.at<uchar>(i, j) == 255 && dstImg.at<Vec3b>(i, j)[c] == 0)
+				{
+					int r1, c1,r2,c2;//coordinate
+					int ra = 50, rb = 150, rc = 250,r;//pixel number
+
+					int list = 1,list1 = 1;//loop of iteration
+					int stop = 0,stop1 = 0;//stop condition	
+					int n = srcImg.rows*srcImg.cols;
+					Mat q = Mat::zeros(n, 2, CV_32F);
+					q.at<float>(0, 0) = i;
+					q.at<float>(0, 1) = j;
+					int count = 0,count1 = 0;
+
+					//estimate different types of particles
+					while (stop1 == 0)
+					{
+
+						r2 = q.at<float>(count1, 0);//get x axis
+						c2 = q.at<float>(count1, 1);//get y axis
+
+						for (int x = 0; x < 3; x++)
+						{
+
+							for (int y = 0; y < 3; y++)
+							{
+
+								if ((r2 + x - 1) >= 0 && (r2 + x - 1) < srcImg.rows && (c2 + y - 1) >= 0 && (c2 + y - 1) < srcImg.cols)
+								{
+
+									if (srcImg.at<uchar>(r2 + x - 1, c2 + y - 1) == 255 && CountSpace.at<Vec3b>(r2 + x - 1, c2 + y - 1)[c] == 0)
+									{
+
+										CountSpace.at<Vec3b>(r2 + x - 1, c2 + y - 1)[c] = 1;//compare and dilation
+										q.at<float>(list1, 0) = r2 + x - 1;
+										q.at<float>(list1, 1) = c2 + y - 1;
+										list1++;
+
+									}
+								}
+							}
+						}
+						count1++;
+						if (count1 == list1)
+							stop1 = 1;
+					}
+					if (count1 < 400)
+					{
+						r = ra;
+					}
+					else if (count1 < 10000)
+					{
+						r = rb;
+					}
+					else
+					{
+						r = rc;
+					}
+
+					while (stop == 0)
+					{
+
+						r1 = q.at<float>(count, 0);//get x axis
+						c1 = q.at<float>(count, 1);//get y axis
+
+
+						for (int x = 0; x < 3; x++)
+						{
+
+							for (int y = 0; y < 3; y++)
+							{
+
+								if ((r1 + x - 1) >= 0 && (r1 + x - 1) < srcImg.rows && (c1 + y - 1) >= 0 && (c1 + y - 1) < srcImg.cols)
+								{
+
+									if (srcImg.at<uchar>(r1 + x - 1, c1 + y - 1) == 255 && dstImg.at<Vec3b>(r1 + x - 1, c1 + y - 1)[c] == 0)
+									{
+
+										dstImg.at<Vec3b>(r1 + x - 1, c1 + y - 1)[c] = r;//compare and dilation
+
+
+
+										q.at<float>(list, 0) = r1 + x - 1;
+										q.at<float>(list, 1) = c1 + y - 1;
+										list++;
+
+									}
+								}
+							}
+						}
+						count++;
+						if (count == list)
+							stop = 1;
+					}
+
+				}
+			}
+
+		}
+
+	}
+
+	return dstImg;
+}
+
+

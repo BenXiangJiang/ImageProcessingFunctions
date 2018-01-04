@@ -153,97 +153,47 @@ Mat MovAveThres(Mat srcImg, Mat &dstImg, int n, int b)
         srcImg.copyTo(dstImg);
         return dstImg;
 }
-Mat RegionGrowing(Mat srcImg, Mat &dstImg, int x, int y,int df)
+at RegionGrowing(Mat srcImg, Mat &dstImg, int x, int y, int df)
 {
-        //srcImg: input image
-        //dstImg,x,y: output image with region growing segmentation with point(x,y)
-        //df: growing different thresh
-        dstImg = Mat::zeros(srcImg.rows, srcImg.cols, CV_8U);
-        dstImg.at<uchar>(x, y) = 255;
-        int r1, c1, p,p1,dst;
-        int r = srcImg.rows;
-        int c = srcImg.cols;
-        int n = r*c;
-        int count = 0;
-        int list = 1;
-        Mat q = Mat::zeros(n, 2, CV_8U);
-        q.at<uchar>(0, 0) = x - 1;
-        q.at<uchar>(0, 1) = y - 1;
-        while (count < n)
-        {
-               r1 = q.at<uchar>(count, 0);//get x axis
-               c1 = q.at<uchar>(count, 1);//get y axis
-               p = srcImg.at<uchar>(r1, c1);//get pixel
-               for (int i = 1; i > -2; i--)
-               {
-                       for (int j = 1; j > -2; j--)
-                       {
-                              if ((r1 + i < r)&&(r1 + i > 0)&&(c1 + j < c)&&(c1 + j > 0))
-                              {
-                                      if ((abs(srcImg.at<uchar>(r1 + i, c1 + j) - p) <= df)&&(dstImg.at<uchar>(r1 + i, c1 + j) == 0))//compare with pixel value
-                                      {
-                                                     q.at<uchar>(list, 0) = r1 + i;
-                                                     q.at<uchar>(list, 1) = c1 + j;
-                                                     list++;
-                                                     dstImg.at<uchar>(r1 + i, c1 + j) = 255;
-                                      }
-                              }
-                       }
-               }
-               count++;
-        }
-        
-        return dstImg;
-}
-/*bicubic interpretation primary function S(w)，used for bicubic interpretation*/
-double Spline(double w)
-{
-        //w function input
-        if (w > -1.5 && w < -0.5)
-        {
-               return(0.5 * pow(w + 1.5, 2.0));
-        }
-        else if (w >= -0.5 && w <= 0.5)
-        {
-               return 3.0 / 4.0 - (w * w);
-        }
-        else if ((w > 0.5 && w < 1.5))
-        {
-               return(0.5 * pow(w - 1.5, 2.0));
-        }
-        return 0.0;
-}
-Mat BicubicInterpolation(Mat srcImg, Mat &dstImg, double yRatio, double xRatio) {
-        //xRatio: scaling ratio of col
-        //yRatio: scaling ratio of row
-        //srcImg: input picture
-        int row = srcImg.rows*yRatio + 0.5;
-        int col = srcImg.cols*xRatio + 0.5;
-        dstImg = Mat::zeros(row, col, CV_8U);
-        double A, B;
-        int a, b;
-        for (int y = 0; y < row; y++) {
-               for (int x = 0; x < col; x++) {
-                       int xOrigin = (int)(x / xRatio);
-                       if (xOrigin < 1) { xOrigin = 1; }
-                       if (xOrigin > srcImg.cols - 3) { xOrigin = srcImg.cols - 3; }
-                       int yOrigin = (int)(y / yRatio);
-                       if (yOrigin < 1) { yOrigin = 1; }
-                       if (yOrigin > srcImg.rows - 3) { yOrigin = srcImg.rows - 3; }
-                       int j = (int)xOrigin;
-                       double v = (double)x / (double)xRatio - (int)xOrigin;
-                       int i = (int)yOrigin;
-                       double u = (double)y / (double)yRatio - (int)yOrigin;
-                       for (a = -1; a < 3; a++)
-                       {
-                              A = Spline(a - v);
-                              for (b = -1; b < 3; b++)
-                              {
-                                      B = Spline(b - u);
-                                      dstImg.at<uchar>(y, x) += A*B*srcImg.at<uchar>(i + b, j + a);
-                              }
-                       }
-               }
-        }
-        return dstImg;
+	//srcImg: input image
+	//dstImg,x,y: output image with region growing segmentation with point(x,y)
+	//df: growing different thresh
+	dstImg = Mat::ones(srcImg.rows, srcImg.cols, CV_8U);
+	dstImg = dstImg * 255;
+
+	dstImg.at<uchar>(x, y) = 0;
+	int r1, c1, p, p1, dst;
+	int r = srcImg.rows;
+	int c = srcImg.cols;
+	int n = r*c;
+	int count = 0;
+	int list = 1;
+	Mat q = Mat::zeros(n, 2, CV_32F);
+	q.at<float>(0, 0) = x - 1;
+	q.at<float>(0, 1) = y - 1;
+	while (count < n)
+	{
+		r1 = q.at<float>(count, 0);//get x axis
+		c1 = q.at<float>(count, 1);//get y axis
+		p = srcImg.at<uchar>(r1, c1);//get pixel
+		for (int i = 1; i > -2; i--)
+		{
+			for (int j = 1; j > -2; j--)
+			{
+				if ((r1 + i < r) && (r1 + i > 0) && (c1 + j < c) && (c1 + j > 0))
+				{
+					if ((abs(srcImg.at<uchar>(r1 + i, c1 + j) - p) <= df) && (dstImg.at<uchar>(r1 + i, c1 + j) == 255))//compare with pixel value
+					{
+						q.at<float>(list, 0) = r1 + i;
+						q.at<float>(list, 1) = c1 + j;
+						list++;
+						dstImg.at<uchar>(r1 + i, c1 + j) = 0;
+					}
+				}
+			}
+		}
+		count++;
+	}
+
+	return dstImg;
 }

@@ -153,7 +153,7 @@ Mat MovAveThres(Mat srcImg, Mat &dstImg, int n, int b)
         srcImg.copyTo(dstImg);
         return dstImg;
 }
-at RegionGrowing(Mat srcImg, Mat &dstImg, int x, int y, int df)
+Mat RegionGrowing(Mat srcImg, Mat &dstImg, int x, int y, int df)
 {
 	//srcImg: input image
 	//dstImg,x,y: output image with region growing segmentation with point(x,y)

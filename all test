@@ -1,0 +1,64 @@
+
+	/*input image*/
+
+	Mat image1 = imread("C://Users//15305//Desktop//opencv//PGM_IMAGES//20150129P-0001-0139.pgm",0);
+
+
+	cv::imshow(" image1", image1);
+	
+	Mat otsuImage1, partiOtsuImage1, movAveImage1, RobGradImage1, SobeGradImage1, PreGradImage1, regionGrowImage1, CannyImage1, LOGImage1, globalImage1, erosionImage1, dilateImage1, openingImage1, closingImage1,extraImage1, coImage1;
+//	OtsuMethod(image1, otsuImage1);	//otsu's method
+//	PartiOtsuMethod(image1, partiOtsuImage1);//partition otsu's method
+//	MovAveThres(image1, movAveImage1, 10, 0.5);//move average threshold method 
+//	RobGrad(image1, RobGradImage1);
+//	SobelGrad(image1, SobeGradImage1);
+//	PreGrad(image1, PreGradImage1);
+//	RegionGrowing(image1, regionGrowImage1, 10, 10, 7);
+
+	//candy edge
+	GaussianBlur(image1, CannyImage1, Size(3, 3), 0, 0);
+	Canny(CannyImage1, CannyImage1, 70, 210, 3);
+
+//	//log filter
+//	GaussianBlur(image1, LOGImage1, Size(3, 3), 0, 0);
+//	Mat kernl = (Mat_<char>(5, 5) << 0, 0, -1, 0, 0,
+//		0, -1, -2, -1, 0,
+//		-1, -2, 16, -2, -1,
+//		0, -1, -2, -1, 0,
+//		0, 0, -1, 0, 0);
+//	filter2D(LOGImage1, LOGImage1, LOGImage1.depth(), kernl);
+//	threshold(LOGImage1, LOGImage1, 0, 255, THRESH_BINARY | THRESH_OTSU);
+
+//	GlobalThres(image1, globalImage1);
+//	erode(image1, erosionImage1, Mat());
+//	dilate(image1, dilateImage1, Mat());
+
+//	//opening 
+//	erode(image1, openingImage1, Mat());
+//	dilate(image1, openingImage1, Mat());
+
+//	//closing
+//	dilate(image1, closingImage1, Mat());
+//	erode(image1, closingImage1, Mat());
+
+//	//extraction
+	//erode(image1, extraImage1, Mat());
+	//extraImage1 = image1 - extraImage1;
+
+//	BinaCoCo(globalImage1, coImage1);
+//	cv::imshow(" otsuImage1", otsuImage1);
+//	cv::imshow(" partiOtsuImage1", partiOtsuImage1);
+//	cv::imshow(" movAveImage1", movAveImage1);
+//	cv::imshow(" RobGradImage1", RobGradImage1);
+//	cv::imshow(" SobeGradImage1", SobeGradImage1);
+//	cv::imshow(" PreGradImage1", PreGradImage1);
+//	cv::imshow(" regionGrowImage1", regionGrowImage1);
+	cv::imshow(" Canny edge detection function of image 1 ", CannyImage1);
+//	cv::imshow(" LOG Filter of image 1 ", LOGImage1);
+//	cv::imshow(" global thresholding  of image 1", globalImage1);
+//	cv::imshow(" erosionImage1", erosionImage1);
+//	cv::imshow(" dilateImage1", dilateImage1);
+//	cv::imshow(" openingImage1", openingImage1);
+//	cv::imshow(" closingImage1", closingImage1);
+//	cv::imshow(" extraImage1", extraImage1);
+//	cv::imshow("connected components of image 1", coImage1);
